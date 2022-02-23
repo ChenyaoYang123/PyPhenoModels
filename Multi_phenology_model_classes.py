@@ -232,8 +232,10 @@ class sigmoid_model:
     def __init__(self, a, b):
         self.a = a
         self.b = b
-    def implement(self, x):  
-        dd_day = 1/(1+math.exp(self.a*(x-self.b)))
+    def implement(self, x):
+        para_a = self.a
+        para_b = self.b
+        dd_day = 1 / (1 + math.exp(para_a * (x-para_b)))
         return dd_day
 ###############################################################################
 class triangular_model:
@@ -254,13 +256,17 @@ class triangular_model:
         self.tdopt =  Tdopt
         self.tdmax =  Tdmax
         
-    def implement(self, x):  
-        if x <= self.tdmin:
+    def implement(self, x):
+        T_dmin = self.tdmin
+        T_dopt = self.tdopt
+        T_dmax = self.tdmax
+        
+        if x <= T_dmin:
             dd_day = 0
-        elif (self.tdmin < x) & (x <= self.tdopt):
-            dd_day= (x-self.tdmin)/(self.tdopt - self.tdmin)
-        elif (self.tdopt < x) & (x < self.tdmax):
-            dd_day= (x-self.tdmax)/(self.tdopt-self.tdmax)
+        elif (T_dmin < x) & (x <= T_dopt):
+            dd_day= (x - T_dmin)/(T_dopt - T_dmin)
+        elif (T_dopt < x) & (x < T_dmax):
+            dd_day= (x - T_dmax)/(T_dopt - T_dmax)
         else:
             dd_day = 0
         return dd_day
@@ -284,13 +290,17 @@ class triangular_STICS_model:
         self.tdstop =  Tdstop
     
     def implement(self, x):  
-        if x <= self.tdmin:
+        T_dmin = self.tdmin
+        T_dmax = self.tdmax
+        T_tdstop = self.tdstop
+
+        if x <= T_dmin:
             dd_day = 0
-        elif (self.tdmin < x) & (x < self.tdmax):
-            dd_day = x - self.tdmin
-        elif (self.tdmax <= x) & (x< self.tdstop):
-            dd_day = (x - self.tdstop) * ((self.tdmax-self.tdmin)/(self.tdmax-self.tdstop))
-        elif x >= self.tdstop:
+        elif (T_dmin < x) & (x < T_dmax):
+            dd_day = x - T_dmin
+        elif (T_dmax <= x) & (x< T_tdstop):
+            dd_day = (x - T_tdstop) * ((T_dmax-T_dmin)/(T_dmax-T_tdstop))
+        elif x >= T_tdstop:
             dd_day = 0
         return dd_day
 ###############################################################################
@@ -308,11 +318,73 @@ class GDD_model:
     def __init__(self, Tdmin):
         self.tdmin =  Tdmin
     
-    def implement(self, x):  
-        if x <= self.tdmin:
+    def implement(self, x): 
+        T_dmin = self.tdmin
+        if x <= T_dmin:
             dd_day = 0
         else:
-            dd_day = x - self.tdmin
+            dd_day = x - T_dmin
+        return dd_day
+###############################################################################
+class GDD_model_Richardson:
+    '''
+    The GDD model class. 
+    It is mainly designed to be called inside the phenology_SM_from_budburst(), which calculates 
+    the daily effective degree day based on the modified version of GDD function with two cardinal parameters.
+    
+    Parameter
+    ----------
+    x : expected mean temperature on a given day, which is mainly applied in .apply() function.
+    Tdmin: float, base temperature below which development rate is null. Default to 10 for grapevine.
+    '''
+    def __init__(self, Tdmin, Tdmax):
+        self.tdmin =  Tdmin
+        self.tdmax =  Tdmax
+    
+    def implement(self, x): 
+        T_dmin = self.tdmin
+        T_dmax = self.tdmax
+        if x <= T_dmin:
+            dd_day = 0
+        else:
+            dd_day= max(min(x-T_dmin, T_dmax-T_dmin),0)
+        return dd_day
+###############################################################################
+class wang_model:
+    '''
+    A beta model function class. 
+    It is mainly designed to be called inside the phenology_SM_from_budburst(), which calculates 
+    the daily effective degree day based on the wang model function with three cardinal parameters.
+    Here the model is based on wang´s paper not based on the PMP documentation. 
+    Note here we are not considering the photoperiod (which we should but in a later stage) and 
+    vernalization (already computed using BRIN model during the dormancy phase) effects 
+    
+    Source: https://doi.org/10.1016/S0308-521X(98)00028-6
+    
+    Parameter
+    ----------
+    x : expected mean temperature on a given day, which is mainly applied in .apply() function.
+    Tdmin: float, base temperature below which development rate is null.
+    Tdopt: float, optimum temperature at which development rate is optimum.
+    Tdmax: float, maximum temperature beyond which development rate is null.
+    '''
+    def __init__(self, Tdmin, Tdopt, Tdmax):
+        self.tdmin =  Tdmin
+        self.tdopt =  Tdopt
+        self.tdmax =  Tdmax
+        
+    def implement(self, x):  
+        T_dmin = self.tdmin
+        T_dopt = self.tdopt
+        T_dmax = self.tdmax
+        # Compute the alpha that is going to be used as the exponent parameter in wang function
+        alpha = math.log(2) / math.log((T_dmax-T_dmin)/(T_dopt-T_dmin))
+        if (T_dmin <= x) & (x <= T_dmax):
+            fwang_numerator = (2 * math.pow(x-T_dmin, alpha) *  math.pow(T_dopt-T_dmin, alpha)) - math.pow(x-T_dmin, 2 * alpha)
+            fwang_denominator = math.pow(T_dopt-T_dmin, 2 * alpha)
+            dd_day = float(fwang_numerator/fwang_denominator)
+        else: # In case x < T_dmin or x > T_dmax
+            dd_day = 0 
         return dd_day
 ###############################################################################
 def phenology_SM_from_budburst(T_input, budburst_ser, thermal_threshold = 290, module = "STICS_GDD", DOY_format=True, **kwargs):
