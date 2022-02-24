@@ -421,6 +421,10 @@ def phenology_SM_from_budburst(T_input, budburst_ser, thermal_threshold = 290, m
         if len(kwargs) !=0: # If the dictionary is not empty, meaning additional keyword arguments are supplied. This is most likely when the phenology models are not yet calibrated
             if module=="classic_GDD":
                 model = GDD_model(kwargs["Tdmin"])
+            elif module=="GDD_Richardson":
+                model = GDD_model_Richardson(kwargs["Tdmin"], kwargs["Tdmax"])
+            elif module=="wang":
+                model = wang_model(kwargs["Tdmin"], kwargs["Tdopt"], kwargs["Tdmax"])
             elif module=="triangular_STICS":
                 model = triangular_STICS_model(kwargs["Tdmin"], kwargs["Tdmax"], kwargs["Tdstop"])
             elif module=="triangular":
@@ -430,6 +434,10 @@ def phenology_SM_from_budburst(T_input, budburst_ser, thermal_threshold = 290, m
         else: # This is most likely in the scenario where each phenology has already been calibrated and run with calibrated parameters
             if module=="classic_GDD":
                 model = GDD_model()
+            elif module=="GDD_Richardson":
+                model = GDD_model_Richardson()
+            elif module=="wang":
+                model = wang_model()
             elif module=="triangular_STICS":
                 model = triangular_STICS_model()
             elif module=="triangular":
