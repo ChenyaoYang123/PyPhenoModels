@@ -275,7 +275,7 @@ def f(d_ini, id_cpu, folder_out, path_data, path_obs, cv_i):
     sampler = spotpy.algorithms.sceua(spot_setup, dbname=folder_out + '/SCEUA_db_' + str(id_cpu) + '_' + str(d_ini[0]) + '_' + str(d_ini[len(d_ini) - 1]) + '_cv' + str(cv_i), dbformat='noData')
 
     # ' Select number of maximum repetitions
-    rep = 150 # 5000
+    rep = 500 # 5000
 
     # ' We start the sampler and set some optional algorithm specific settings
     # ' (check out the publication of SCE-UA for details):
