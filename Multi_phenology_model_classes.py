@@ -231,7 +231,7 @@ class bug_holder:
     def __init__(self,data):
         self.bug_list.append(data)
 ############################################################################################################################################################################
-def run_BRIN_model(tasmin, tasmax, CCU_dormancy = None, T0_dormancy = None, CGDH_budburst = None, 
+def run_BRIN_model(tasmin, tasmax, CCU_dormancy = None, T0_dormancy = 213, CGDH_budburst = None, 
                    TMBc_budburst= None, TOBc_budburst = None, Richarson_model= None, bug_catch= False, **kwargs):
     '''
     Run the BRIN model class to get the outputs for both the dormancy break and budburst.
@@ -261,7 +261,9 @@ def run_BRIN_model(tasmin, tasmax, CCU_dormancy = None, T0_dormancy = None, CGDH
     budburst_output = eco_dormancy_model.predict(dormancy_output) 
     # Check if the dormancy date equals to or be late than the budbreak date, which should always not happen. If happenns, assign NaN values
     for index, (dormancy_date, budburst_date) in enumerate(zip(dormancy_output, budburst_output)):
-        if dormancy_date >= budburst_date: 
+        if np.logical_or(np.isnan(dormancy_date), np.isnan(budburst_date)):
+            continue # Skip NaN value in dormany or budburst DOY
+        elif dormancy_date >= budburst_date: # If none are NaN values, they must conform to the datetime format
             dormancy_output.iloc[index] = np.nan
             budburst_output.iloc[index] = np.nan
             print("Warning!! The simulation errors are found as the simulated dormancy date is greater or equivalent to the budburst date")
