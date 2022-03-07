@@ -49,11 +49,12 @@ def f(d_ini, id_cpu, folder_out, path_data, path_obs, cv_i):
         par0_sd = Uniform(low=par0_sd_low, high=par0_sd_high)
 
 
-        # par1: CGDH_budburst = 7500.0
-        par1_mean_low_mean = 7300
+        # par1: CGDH_budburst = 7500.0 # for hourly
+        # par1: CGDH_budburst = 2000 # for dialy
+        par1_mean_low_mean = 500
         par1_mean_low_sd = par1_mean_low_mean * cv_i / 100
         par1_mean_low = numpy.random.normal(loc=par1_mean_low_mean, scale=par1_mean_low_sd, size=1)
-        par1_mean_high_mean = 7700
+        par1_mean_high_mean = 4000
         par1_mean_high_sd = par1_mean_high_mean * cv_i / 100
         par1_mean_high = numpy.random.normal(loc=par1_mean_high_mean, scale=par1_mean_high_sd, size=1)
         par1_mean = Uniform(low=par1_mean_low, high=par1_mean_high)
@@ -140,95 +141,106 @@ def f(d_ini, id_cpu, folder_out, path_data, path_obs, cv_i):
             # Defining parameter to be passed to vineyard
             print('... before running model ...')
 
-            d_ini_sim = self.d_ini
-            id_cpu_sim = self.id_cpu
+            detect_nan = False
 
-            par0 = numpy.random.normal(loc=x[0], scale=x[1], size=1)
-            par0 = round(par0[0], 1)
+            while numpy.invert(detect_nan):
 
-            par1 = numpy.random.normal(loc=x[2], scale=x[3], size=1)
-            par1 = round(par1[0], 1)
+                d_ini_sim = self.d_ini
+                id_cpu_sim = self.id_cpu
 
-            par2 = numpy.random.normal(loc=x[4], scale=x[5], size=1)
-            par2 = round(par2[0], 1)
+                par0 = numpy.random.normal(loc=x[0], scale=x[1], size=1)
+                par0 = round(par0[0], 1)
 
-            par3 = numpy.random.normal(loc=x[6], scale=x[7], size=1)
-            par3 = round(par3[0], 1)
+                par1 = numpy.random.normal(loc=x[2], scale=x[3], size=1)
+                par1 = round(par1[0], 1)
 
-            pars = pd.DataFrame([par0, par1, par2, par3])
-            pars.to_csv(
-                folder_out + '/tmp_pars_' + str(d_ini[0]) + '_' + str(d_ini[len(d_ini) - 1]) + '.csv') # ato
+                par2 = numpy.random.normal(loc=x[4], scale=x[5], size=1)
+                par2 = round(par2[0], 1)
 
-            # Beginning of code implemented by Chenyao!
-            # 2. Run BRIN model to generate output for dormancy and budburst date
-            dormancy_out, budburst_out = run_BRIN_model(self.T_min_series, self.T_max_series, CCU_dormancy=par0, CGDH_budburst=par1, TMBc_budburst=par2, TOBc_budburst=par3)
-            # A list of BRIN model parameters that need to be calibrated (the docst can be retrieved by calling run_BRIN_model.__doc__)
-            # CCU_dormancy: float, a BRIN model parameter that represents the cumulative chilling unit to break the dormancy with calculations starting from the starting_DOY.
-            # CGDH_budburst: float, a BRIN model parameter that represents the cumulative growing degree hours to reach the budbust onset from the dormancy break DOY.
-            # TMBc_budburst: float, a BRIN model parameter that represents the upper temperatue threshold for the linear response function.
-            # TOBc_budburst: float, a BRIN model parameter that represents the base temperature for the post-dormancy period.
+                par3 = numpy.random.normal(loc=x[6], scale=x[7], size=1)
+                par3 = round(par3[0], 1)
 
-            # 3.Compare predictions vs observations # Note here we only need to analyze the budburst DOY
-            budburst_pred = pd.Series(budburst_out.apply(lambda x: x.dayofyear).values, index=budburst_out.index,
-                                      name="budburst_pred")  # Obtain the prediction vector for budburst
+                pars = pd.DataFrame([par0, par1, par2, par3])
+                pars.to_csv(
+                    folder_out + '/tmp_pars_' + str(d_ini[0]) + '_' + str(d_ini[len(d_ini) - 1]) + '.csv') # ato
 
-            # The next step should be to compare budburst_pred with budburst_ob
-            # Ending of code implemented by Chenyao!
+                # Beginning of code implemented by Chenyao!
+                # 2. Run BRIN model to generate output for dormancy and budburst date
+                dormancy_out, budburst_out = run_BRIN_model(self.T_min_series, self.T_max_series, CCU_dormancy=par0,
+                                                            CGDH_budburst=par1, TMBc_budburst=par2, TOBc_budburst=par3,
+                                                            Richarson_model='daily')
+                # A list of BRIN model parameters that need to be calibrated (the docst can be retrieved by calling run_BRIN_model.__doc__)
+                # CCU_dormancy: float, a BRIN model parameter that represents the cumulative chilling unit to break the dormancy with calculations starting from the starting_DOY.
+                # CGDH_budburst: float, a BRIN model parameter that represents the cumulative growing degree hours to reach the budbust onset from the dormancy break DOY.
+                # TMBc_budburst: float, a BRIN model parameter that represents the upper temperatue threshold for the linear response function.
+                # TOBc_budburst: float, a BRIN model parameter that represents the base temperature for the post-dormancy period.
 
-            # func.f_write_r(cultivar=cultivar1,
-            #               t_mean_col=6,
-            #               t_min_col=7,
-            #               t_max_col=5,
-            #               month=month,
-            #               day=day,
-            #               t_zero=0,
-            #               a=a,
-            #               b=b,
-            #               c=c,
-            #               par1=round(par1[0], 1),
-            #               d_ini=d_ini_sim,
-            #               cpu_id=id_cpu_sim,
-            #               folder_out = folder_out)
+                # here we add the check function of NA values
+                if any(pandas.isnull(budburst_out)):
+                    detect_nan = True
+                    break
 
-            # ' Concatenate files to final R-script
-            #filenames = [folder_out + '/func_r_pars_py_' + str(id_cpu_sim) + '.R', 'func.R']
-            #with open(folder_out + '/func_' + str(d_ini_sim[0]) + '_' + str(d_ini_sim[len(d_ini_sim) - 1]) + '.R', 'w') as outfile:
-            #    for fname in filenames:
-            #        with open(fname) as infile:
-            #            outfile.write(infile.read())
-            #    outfile.close()
+                # 3.Compare predictions vs observations # Note here we only need to analyze the budburst DOY
+                budburst_pred = pd.Series(budburst_out.apply(lambda x: x.dayofyear).values, index=budburst_out.index,
+                                          name="budburst_pred")  # Obtain the prediction vector for budburst
 
-            ## 'Execute R script to compute BBCH09
-            ## import os
-            ## # os.system("Rscript 'func_1974-01-01_1983-12-31.R'")
-            ## os.system("Rscript 'func.R'")
+                # The next step should be to compare budburst_pred with budburst_ob
+                # Ending of code implemented by Chenyao!
 
-            #import subprocess
-            #r_filename = folder_out + '/func_' + str(d_ini_sim[0]) + '_' + str(d_ini_sim[len(d_ini_sim) - 1]) + '.R'
-            ## subprocess.call(['Rscript', r_filename])
-            ## subprocess.Popen(["Rscript", r_filename])
-            #print(r_filename)
-            #subprocess.call(["Rscript", r_filename])
+                # func.f_write_r(cultivar=cultivar1,
+                #               t_mean_col=6,
+                #               t_min_col=7,
+                #               t_max_col=5,
+                #               month=month,
+                #               day=day,
+                #               t_zero=0,
+                #               a=a,
+                #               b=b,
+                #               c=c,
+                #               par1=round(par1[0], 1),
+                #               d_ini=d_ini_sim,
+                #               cpu_id=id_cpu_sim,
+                #               folder_out = folder_out)
 
-            ## 'Read BBCH09
-            #bbch09 = f_data_obs(dat_file=folder_out + '/tmp_table_09_' + str(d_ini_sim[0]) + '_' + str(d_ini_sim[len(d_ini_sim) - 1]) + '.csv',
-            #                    dat_sep=',')
-            ## bbch09 = f_data_obs(dat_file='tmp_table_09_Rivaner.csv',
-            ##                     dat_sep=',')
-            ## bbch09 = f_data_obs(dat_file='tmp_table_09_Rivaner_1974-01-01_1983-12-31.csv',
-            ##                     dat_sep=',')
+                # ' Concatenate files to final R-script
+                #filenames = [folder_out + '/func_r_pars_py_' + str(id_cpu_sim) + '.R', 'func.R']
+                #with open(folder_out + '/func_' + str(d_ini_sim[0]) + '_' + str(d_ini_sim[len(d_ini_sim) - 1]) + '.R', 'w') as outfile:
+                #    for fname in filenames:
+                #        with open(fname) as infile:
+                #            outfile.write(infile.read())
+                #    outfile.close()
 
-            ## print(bbch09)
-            ## print(bbch09.shape)
+                ## 'Execute R script to compute BBCH09
+                ## import os
+                ## # os.system("Rscript 'func_1974-01-01_1983-12-31.R'")
+                ## os.system("Rscript 'func.R'")
 
-            #bbch09_sim = bbch09["simple"]
+                #import subprocess
+                #r_filename = folder_out + '/func_' + str(d_ini_sim[0]) + '_' + str(d_ini_sim[len(d_ini_sim) - 1]) + '.R'
+                ## subprocess.call(['Rscript', r_filename])
+                ## subprocess.Popen(["Rscript", r_filename])
+                #print(r_filename)
+                #subprocess.call(["Rscript", r_filename])
 
-            bbch09_sim = pandas.DataFrame(budburst_pred)
+                ## 'Read BBCH09
+                #bbch09 = f_data_obs(dat_file=folder_out + '/tmp_table_09_' + str(d_ini_sim[0]) + '_' + str(d_ini_sim[len(d_ini_sim) - 1]) + '.csv',
+                #                    dat_sep=',')
+                ## bbch09 = f_data_obs(dat_file='tmp_table_09_Rivaner.csv',
+                ##                     dat_sep=',')
+                ## bbch09 = f_data_obs(dat_file='tmp_table_09_Rivaner_1974-01-01_1983-12-31.csv',
+                ##                     dat_sep=',')
 
-            bbch09_sim.to_csv(
-                folder_out + '/tmp_bbch09_sim_' + str(d_ini[0]) + '_' + str(d_ini[len(d_ini) - 1]) + '.csv')  # ato
+                ## print(bbch09)
+                ## print(bbch09.shape)
 
-            return bbch09_sim['budburst_pred']
+                #bbch09_sim = bbch09["simple"]
+
+                bbch09_sim = pandas.DataFrame(budburst_pred) # TODO: check: pandas.Series(budburst_pred)
+
+                bbch09_sim.to_csv(
+                    folder_out + '/tmp_bbch09_sim_' + str(d_ini[0]) + '_' + str(d_ini[len(d_ini) - 1]) + '.csv')  # ato
+
+                return bbch09_sim['budburst_pred']
 
         def evaluation(self):
             obs_bbch09 = pandas.DataFrame(self.obs_bbch09)

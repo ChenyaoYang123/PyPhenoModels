@@ -38,8 +38,9 @@ path_obs1 = ("./calibration_test/sample_data.csv")
 d_ini = ["1990-01-01", "2014-12-31"]
 id_cpu = random.randint(100, 999)
 
-for cv_i in range(1): # run until 20
-    my_sce_ua(d_ini, id_cpu, path_data1, path_obs1, cv_i)
+# for cv_i in range(1): # run until 20
+cv_i = 9
+my_sce_ua(d_ini, id_cpu, path_data1, path_obs1, cv_i)
 
 time_end = datetime.now()
 time_end_str = time_end.strftime("%Y-%m-%d %H:%M:%S")
