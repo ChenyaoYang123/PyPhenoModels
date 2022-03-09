@@ -19,29 +19,27 @@ import pandas
 # import time
 # from datetime import datetime, timedelta
 
-from PyPhenoModels.Multi_phenology_model_classes import *
+from Multi_phenology_model_classes import *
 import pandas as pd
-
-
-
+from collections.abc import Iterable 
 
 def f(d_ini, id_cpu, folder_out, path_data, path_obs, cv_i):
 
-    class SpotSetup(object):
+    class MySpotSetup(object):
 
         # par0: CCU_dormancy = 130
         par0_mean_low_mean = 110
-        par0_mean_low_sd = par0_mean_low_mean*cv_i/100
+        par0_mean_low_sd = par0_mean_low_mean*cv_i / 100
         par0_mean_low = numpy.random.normal(loc=par0_mean_low_mean, scale=par0_mean_low_sd, size= 1)
         # par0_mean_rng_5th  = numpy.percentile(a=par0_mean_rng, q = 5)
         # par0_mean_rng_95th = numpy.percentile(a=par0_mean_rng, q=95)
         par0_mean_high_mean = 150
-        par0_mean_high_sd = par0_mean_high_mean*cv_i/100
+        par0_mean_high_sd = par0_mean_high_mean*cv_i / 100
         par0_mean_high = numpy.random.normal(loc=par0_mean_high_mean, scale=par0_mean_high_sd, size= 1)
         par0_mean = Uniform(low=par0_mean_low, high=par0_mean_high)
 
         par0_sd_low_mean = par0_mean_low_sd
-        par0_sd_low_sd = par0_sd_low_mean * cv_i/100
+        par0_sd_low_sd = par0_sd_low_mean * cv_i / 100
         par0_sd_low = numpy.random.normal(loc=par0_sd_low_mean, scale=par0_sd_low_sd, size=1)
         par0_sd_high_mean = par0_mean_high_sd
         par0_sd_high_sd = par0_sd_high_mean * cv_i / 100
@@ -68,10 +66,10 @@ def f(d_ini, id_cpu, folder_out, path_data, path_obs, cv_i):
         par1_sd = Uniform(low=par1_sd_low, high=par1_sd_high)
 
         # par2: TMBc_budburst = 25.0
-        par2_mean_low_mean = 22
+        par2_mean_low_mean = 18 # 22
         par2_mean_low_sd = par2_mean_low_mean * cv_i / 100
         par2_mean_low = numpy.random.normal(loc=par2_mean_low_mean, scale=par2_mean_low_sd, size=1)
-        par2_mean_high_mean = 28
+        par2_mean_high_mean = 32 # 28
         par2_mean_high_sd = par2_mean_high_mean * cv_i / 100
         par2_mean_high = numpy.random.normal(loc=par2_mean_high_mean, scale=par2_mean_high_sd, size=1)
         par2_mean = Uniform(low=par2_mean_low, high=par2_mean_high)
@@ -85,10 +83,10 @@ def f(d_ini, id_cpu, folder_out, path_data, path_obs, cv_i):
         par2_sd = Uniform(low=par2_sd_low, high=par2_sd_high)
 
         # par3: TOBc_budburst=8.19
-        par3_mean_low_mean = 6
+        par3_mean_low_mean = 2 # 6
         par3_mean_low_sd = par3_mean_low_mean * cv_i / 100
         par3_mean_low = numpy.random.normal(loc=par3_mean_low_mean, scale=par3_mean_low_sd, size=1)
-        par3_mean_high_mean = 10
+        par3_mean_high_mean = 18 # 10
         par3_mean_high_sd = par3_mean_high_mean * cv_i / 100
         par3_mean_high = numpy.random.normal(loc=par3_mean_high_mean, scale=par3_mean_high_sd, size=1)
         par3_mean = Uniform(low=par3_mean_low, high=par3_mean_high)
@@ -187,70 +185,37 @@ def f(d_ini, id_cpu, folder_out, path_data, path_obs, cv_i):
                 # The next step should be to compare budburst_pred with budburst_ob
                 # Ending of code implemented by Chenyao!
 
-                # func.f_write_r(cultivar=cultivar1,
-                #               t_mean_col=6,
-                #               t_min_col=7,
-                #               t_max_col=5,
-                #               month=month,
-                #               day=day,
-                #               t_zero=0,
-                #               a=a,
-                #               b=b,
-                #               c=c,
-                #               par1=round(par1[0], 1),
-                #               d_ini=d_ini_sim,
-                #               cpu_id=id_cpu_sim,
-                #               folder_out = folder_out)
-
-                # ' Concatenate files to final R-script
-                #filenames = [folder_out + '/func_r_pars_py_' + str(id_cpu_sim) + '.R', 'func.R']
-                #with open(folder_out + '/func_' + str(d_ini_sim[0]) + '_' + str(d_ini_sim[len(d_ini_sim) - 1]) + '.R', 'w') as outfile:
-                #    for fname in filenames:
-                #        with open(fname) as infile:
-                #            outfile.write(infile.read())
-                #    outfile.close()
-
-                ## 'Execute R script to compute BBCH09
-                ## import os
-                ## # os.system("Rscript 'func_1974-01-01_1983-12-31.R'")
-                ## os.system("Rscript 'func.R'")
-
-                #import subprocess
-                #r_filename = folder_out + '/func_' + str(d_ini_sim[0]) + '_' + str(d_ini_sim[len(d_ini_sim) - 1]) + '.R'
-                ## subprocess.call(['Rscript', r_filename])
-                ## subprocess.Popen(["Rscript", r_filename])
-                #print(r_filename)
-                #subprocess.call(["Rscript", r_filename])
-
-                ## 'Read BBCH09
-                #bbch09 = f_data_obs(dat_file=folder_out + '/tmp_table_09_' + str(d_ini_sim[0]) + '_' + str(d_ini_sim[len(d_ini_sim) - 1]) + '.csv',
-                #                    dat_sep=',')
-                ## bbch09 = f_data_obs(dat_file='tmp_table_09_Rivaner.csv',
-                ##                     dat_sep=',')
-                ## bbch09 = f_data_obs(dat_file='tmp_table_09_Rivaner_1974-01-01_1983-12-31.csv',
-                ##                     dat_sep=',')
-
-                ## print(bbch09)
-                ## print(bbch09.shape)
-
-                #bbch09_sim = bbch09["simple"]
 
                 bbch09_sim = pandas.DataFrame(budburst_pred) # TODO: check: pandas.Series(budburst_pred)
 
                 bbch09_sim.to_csv(
-                    folder_out + '/tmp_bbch09_sim_' + str(d_ini[0]) + '_' + str(d_ini[len(d_ini) - 1]) + '.csv')  # ato
+                    folder_out + '/tmp_bbch09_sim_' + str(d_ini[0]) + '_' + str(d_ini[len(d_ini) - 1]) + '.csv',
+                    index=False, header=False)  # ato
 
-                return bbch09_sim['budburst_pred']
+                bbch09_sim1 = bbch09_sim['budburst_pred']
+
+                return bbch09_sim1.values
 
         def evaluation(self):
             obs_bbch09 = pandas.DataFrame(self.obs_bbch09)
 
             obs_bbch09.to_csv(
-                folder_out + '/tmp_obs_bbch09_' + str(d_ini[0]) + '_' + str(d_ini[len(d_ini) - 1]) + '.csv')  # ato
+                folder_out + '/tmp_obs_bbch09_' + str(d_ini[0]) + '_' + str(d_ini[len(d_ini) - 1]) + '.csv',
+                index=False, header=False)  # ato
 
             return obs_bbch09['budburst_ob']
 
         def objectivefunction(self, simulation, evaluation, params=None):
+            if isinstance(simulation,Iterable):   
+                check_NaN_bool = any(pd.isnull(simulation)) 
+            elif ~isinstance(simulation,Iterable):
+                check_NaN_bool = pd.isnull(simulation)
+            if check_NaN_bool:
+                like = np.nan
+                return like
+
+            #simulation.to_csv(folder_out + '/my_sim.csv', mode="a", index=False, header=False)  # ato
+
             # check if -999 values are present in evaluation (obs)
             if min(evaluation) == -999:
                 id_missing = numpy.where(evaluation == -999)
@@ -258,9 +223,11 @@ def f(d_ini, id_cpu, folder_out, path_data, path_obs, cv_i):
                 id_missing1 = pandas.DataFrame(id_missing1)
                 id_missing1 = id_missing1.T
                 id_missing1.columns = ['id_missing']
-                id_missing1.to_csv(folder_out + '/tmp_evaluation_id_missing_' + str(d_ini[0]) + '_' + str(d_ini[len(d_ini) - 1]) + '.csv')
+                id_missing1.to_csv(folder_out + '/tmp_evaluation_id_missing_' + str(d_ini[0]) + '_' +
+                                   str(d_ini[len(d_ini) - 1]) + '.csv')
 
-                evaluation.to_csv(folder_out + '/tmp_evaluation_' + str(d_ini[0]) + '_' + str(d_ini[len(d_ini) - 1]) + '.csv')
+                evaluation.to_csv(folder_out + '/tmp_evaluation_' + str(d_ini[0]) + '_' +
+                                  str(d_ini[len(d_ini) - 1]) + '.csv')
                 # simulation.to_csv(folder_out + '/tmp_simulation_' + str(d_ini[0]) + '_' + str(d_ini[1]) + '.csv')
 
                 id_no_missing = numpy.where(evaluation != -999)
@@ -270,24 +237,28 @@ def f(d_ini, id_cpu, folder_out, path_data, path_obs, cv_i):
             # Evaluating rmse
             like = rmse(evaluation, simulation)
 
-            like_2csv = pandas.DataFrame([like, like])
+            like_2csv = pandas.DataFrame([like])
 
             like_2csv.to_csv(
-                folder_out + '/tmp_like_' + str(d_ini[0]) + '_' + str(d_ini[len(d_ini) - 1]) + '.csv')  # ato
-
+                folder_out + '/tmp_like_' + str(d_ini[0]) + '_' + str(d_ini[len(d_ini) - 1]) + '.csv', mode='a',
+                index=False, header=False)  # ato
 
             return like
 
     # ' Calibrating with SCE-UA
     import sys
-    sys.stdout = open(folder_out + '/SCEUA_log_' + str(id_cpu) + '_' + str(d_ini[0]) + '_' + str(d_ini[len(d_ini) - 1]) + '_cv' + str(cv_i) +'.log', 'w')
+    sys.stdout = open(folder_out + '/SCEUA_log_' + str(d_ini[0]) + '_' + str(d_ini[len(d_ini) - 1]) + '_cv' +
+                      str(cv_i) +'.log', 'w')
 
-    spot_setup = SpotSetup(spotpy.objectivefunctions.rmse)
+    my_spot_setup = MySpotSetup(spotpy.objectivefunctions.rmse)
     print('... before sampler...')
-    sampler = spotpy.algorithms.sceua(spot_setup, dbname=folder_out + '/SCEUA_db_' + str(id_cpu) + '_' + str(d_ini[0]) + '_' + str(d_ini[len(d_ini) - 1]) + '_cv' + str(cv_i), dbformat='noData')
+    sampler = spotpy.algorithms.sceua(my_spot_setup, dbname=folder_out + '/SCEUA_db_' + str(d_ini[0]) + '_' +
+                                                            str(d_ini[len(d_ini) - 1]) + '_cv' + str(cv_i) + '.csv',
+                                      dbformat='csv')
+
 
     # ' Select number of maximum repetitions
-    rep = 500 # 5000
+    rep = 5000 # 5000
 
     # ' We start the sampler and set some optional algorithm specific settings
     # ' (check out the publication of SCE-UA for details):
@@ -299,11 +270,15 @@ def f(d_ini, id_cpu, folder_out, path_data, path_obs, cv_i):
     results = sampler.getdata()
 
     # Use the analyser to show the parameter interaction _' + str(d_ini[0]) + '_' + str(d_ini[1]) + '.csv'
-    spotpy.analyser.plot_parameterInteraction(results, fig_name=folder_out + '/Parameterinteraction_' + str(d_ini[0]) + '_' + str(d_ini[len(d_ini) - 1]) + '.png')
+    spotpy.analyser.plot_parameterInteraction(results, fig_name=folder_out + '/Parameterinteraction_' +
+                                                                str(d_ini[0]) + '_' + str(d_ini[len(d_ini) - 1]) +
+                                                                '_cv' + str(cv_i) + '.png')
 
     posterior = spotpy.analyser.get_posterior(results, percentage=10)
 
-    spotpy.analyser.plot_parameterInteraction(posterior, fig_name=folder_out + '/Parameterinteraction_post_' + str(d_ini[0]) + '_' + str(d_ini[len(d_ini) - 1]) + '.png')
+    spotpy.analyser.plot_parameterInteraction(posterior, fig_name=folder_out + '/Parameterinteraction_post_' +
+                                                                  str(d_ini[0]) + '_' + str(d_ini[len(d_ini) - 1]) +
+                                                                  '_cv' + str(cv_i) + '.png')
 
     # bestindex, bestobjf = spotpy.analyser.get_minlikeindex(results)
     # best_param = spotpy.analyser.get_best_parameterset(results)
@@ -313,7 +288,8 @@ def f(d_ini, id_cpu, folder_out, path_data, path_obs, cv_i):
     # print(bestobjf)
     # print('Check ' + str(best_param))
     #
-    # fw = open(folder_out + '/SCEUA_vineyard_bestmodel_' + str(id_cpu) + '_' + str(d_ini[0]) + '_' + str(d_ini[1]) + '.txt', 'w+')
+    # fw = open(folder_out + '/SCEUA_vineyard_bestmodel_' + str(id_cpu) + '_' + str(d_ini[0]) + '_' +
+    #           str(d_ini[1]) + '.txt', 'w+')
     # fw.write('## parameters for bubdbreak calibration (best model) \r\n')
     # fw.write('\r\n')
     # # fw.write(str(best_model_run) + '\r\n')

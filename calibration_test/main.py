@@ -25,7 +25,20 @@
 
 import os
 
+# ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+def mkdir(dir = None):
+  '''
+  Creates the given directory.
 
+  Parameters
+  ----------
+  dir : char
+           Directory
+  '''
+  if not dir is None:
+    if not os.path.exists(dir):
+      os.makedirs(dir)
+# ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 def my_sce_ua(d_ini, id_cpu, path_data, path_obs, cv_i):
     # importing  all the functions defined in func.py
@@ -39,7 +52,7 @@ def my_sce_ua(d_ini, id_cpu, path_data, path_obs, cv_i):
 
     # 'Create output folder
     try:
-        os.mkdir(folder_output)
+        mkdir(folder_output)
     except OSError as error:
         print(error)
 
