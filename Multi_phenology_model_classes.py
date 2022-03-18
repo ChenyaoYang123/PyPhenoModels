@@ -4,6 +4,24 @@ import math
 ############################################################################################################################################################################
 ###### Section 1. Define the BRIN model class that aims to compute the budburst date from the beginning of dormancy onset ######
 ############################################################################################################################################################################
+def sort_twoyear_combo(study_years):
+    '''
+    Sort a two-year combo from a list of study years
+    It can also handle discontinuous years with random breaking points
+    
+    Parameter
+    ----------
+    study_years : list, a list of study years (int or float)
+    '''
+    assert isinstance(study_years, list), "the input study_years is not a list, type {} is found".format(str(study_years.__class__))
+    two_year_combo_list = [] # Append to an empty list a target list of two year combo
+    for year_first, year_second in zip(study_years, study_years[1:]):
+        if (year_first + 1) != year_second:
+            two_year_combo_list.append([year_second-1, year_second])
+        else:
+            two_year_combo_list.append([year_first, year_first+1])
+    return two_year_combo_list
+############################################################################################################################################################################
 class BRIN_model:
     '''
     Define a class representing the BRIN model to compute the budburst date, which is composed of modules to compute the date for both the dormancy break and burburst onset.
@@ -42,9 +60,13 @@ class BRIN_model:
         # Create additional attributes based on the input
         self.temp_df = pd.concat([self.tmin,self.tmax], axis = 1, join="inner") # Create the two-columns dataframe from tmin and tmax
         # Get the unique number of study years from the meteorology time series provided
-        self.study_years = self.temp_df.index.year.unique()
+        study_years = self.temp_df.index.year.unique()
+        study_years = study_years.sort_values() # Sort the years
         # Generate the consecutively 2-year combo from the yearly timeseries. This is necessary since the dormancy calculation starts from the previous year
-        self.two_year_combo = [[year,year+1] for year in self.study_years if year != self.study_years[-1]] # list of list years that represent consecutively two study years
+        # gap_years = detect_break_points(study_years) # Check if there are any years from observations that provide discontinous data, if yes, return the respective year               
+        self.two_year_combo = sort_twoyear_combo(list(study_years)) # Update on the study years to have one more year before the breaking point year
+        #     self.study_years = [[year,year+1] for year in self.study_years if year != self.study_years[-1]] 
+        #self.two_year_combo = [[year,year+1] for year in self.study_years if year != self.study_years[-1]] # list of list years that represent consecutively two study years
         # Define the parent class attributes that can access the child class attributes (for dormancy and post-dormancy module)
         self.endo_dormancy = self.dormancy_module(CCU, starting_DOY, self.temp_df, self.two_year_combo)
         self.eco_dormancy = self.postdormancy_module(CGDH, TMBc, TOBc, Richarson_model, self.temp_df, self.two_year_combo)
@@ -70,7 +92,7 @@ class BRIN_model:
             starting_DOY = self.starting_DOY
             CCU = self.CCU
             # Define an inner function within the predict() method, i.e. this inner function is only callable within predict() class instance method
-            def Q10_func(x, Q10 = 2.17, tasmin="tasmin", tasmax="tasmax"): 
+            def Q10_func(x, Q10 = 1.55, tasmin="tasmin", tasmax="tasmax"): 
                 '''
                 The Bidade function in STICS is based on the Q10 concept, which aims to compute the cumulative chilling units from dormancy onset to dormancy break
                 
@@ -211,7 +233,10 @@ class BRIN_model:
                 cdd_GDH = GDH_series.cumsum()
                 # Find out the date where the threshold is firstly exceeded 
                 if not cdd_GDH[cdd_GDH >= CGDH].empty:
-                    DOY_index  = cdd_GDH[~(cdd_GDH >= CGDH)].argmax(skipna=True) + 1 
+                    if cdd_GDH[~(cdd_GDH >= CGDH)].empty: # An empty sequence. This is the case where only one day value is higher than the threshold 
+                        DOY_index = cdd_GDH.index.get_loc(cdd_GDH[cdd_GDH>=CGDH].idxmin())
+                    else:
+                        DOY_index  = cdd_GDH[~(cdd_GDH >= CGDH)].argmax(skipna=True) + 1 
                     budburst_date = cdd_GDH.index[DOY_index] # Obtain the target date in the datetime object
                     budburst_year = budburst_date.year
                 else:
@@ -261,7 +286,7 @@ def run_BRIN_model(tasmin, tasmax, CCU_dormancy = None, T0_dormancy = 213, CGDH_
     budburst_output = eco_dormancy_model.predict(dormancy_output) 
     # Check if the dormancy date equals to or be late than the budbreak date, which should always not happen. If happenns, assign NaN values
     for index, (dormancy_date, budburst_date) in enumerate(zip(dormancy_output, budburst_output)):
-        if np.logical_or(np.isnan(dormancy_date), np.isnan(budburst_date)):
+        if np.logical_or(pd.isnull(dormancy_date), pd.isnull(budburst_date)):
             continue # Skip NaN value in dormany or budburst DOY
         elif dormancy_date >= budburst_date: # If none are NaN values, they must conform to the datetime format
             dormancy_output.iloc[index] = np.nan
@@ -280,7 +305,7 @@ def run_BRIN_model(tasmin, tasmax, CCU_dormancy = None, T0_dormancy = 213, CGDH_
 ############################################################################################################################################################################
 class sigmoid_model: 
     '''
-    A sigmoid model class.
+    A sigmoid model class
     It is mainly designed to be called inside the phenology_SM_from_budburst(), which calculates 
     the daily effective degree day based on the PMP platform sigmoid model function with two cardinal parameters.
     
@@ -448,7 +473,7 @@ class wang_model:
             dd_day = 0 
         return dd_day
 ###############################################################################
-def phenology_SM_from_budburst(T_input, budburst_ser, thermal_threshold = 290, module = "STICS_GDD", DOY_format=True, **kwargs):
+def phenology_model_run(T_input, thermal_threshold = 290, module = "STICS_GDD", DOY_format=True, from_budburst=True, **kwargs):
     '''
     Implement different phenology models to compute a target phenology stage from the budburst onset for grapevine.
     
@@ -463,79 +488,116 @@ def phenology_SM_from_budburst(T_input, budburst_ser, thermal_threshold = 290, m
     '''
     if not isinstance(T_input, pd.core.series.Series):
         raise TypeError("The input temperature does not follow a series format, the format of {} is found".format(T_input.__class__)) 
+
+    # Initialize the model class
+    if module=="classic_GDD":
+        model = GDD_model(kwargs["Tdmin"])
+    elif module=="GDD_Richardson":
+        model = GDD_model_Richardson(kwargs["Tdmin"], kwargs["Tdmax"])
+    elif module=="wang":
+        model = wang_model(kwargs["Tdmin"], kwargs["Tdopt"], kwargs["Tdmax"])
+    elif module=="triangular_STICS":
+        model = triangular_STICS_model(kwargs["Tdmin"], kwargs["Tdmax"], kwargs["Tdstop"])
+    elif module=="triangular":
+        model = triangular_model(kwargs["Tdmin"], kwargs["Tdopt"], kwargs["Tdmax"])                
+    elif module=="sigmoid":
+        model = sigmoid_model(kwargs["a"],kwargs["b"])
+    
     # Obtain a unique list of study years
     Years =  T_input.index.year.unique()
-    # Obtain a list of two year combination list as the iteration list 
-    two_year_combo = [[Year,Year+1] for Year in Years if Year != Years[-1]] 
     # Pre-define an empty series to be filled with data
     Yearly_date_ser = pd.Series(dtype= float)
-    # Iterate over the two-year combo list 
-    for index, two_year_tuple in enumerate(two_year_combo):
-        # Extract the budburst date for this specific year
-        budburst_date = budburst_ser.iloc[index] # Here the year is the index of a series, leading to a specific budburst date of a year prior predicted by the BRIN model.
-        # Extract the consecutive two-year climate dataframe
-        two_year_climate = T_input.loc[T_input.index.year.isin(two_year_tuple)]
-        # Filter the 2-year climate so that the first year date starts from the budburst date
-        two_year_climate = two_year_climate.loc[~np.logical_and(two_year_climate.index < budburst_date, 
-                                                            two_year_climate.index.year == min(two_year_tuple))] 
-        # Initialize the model class
-        if len(kwargs) !=0: # If the dictionary is not empty, meaning additional keyword arguments are supplied. This is most likely when the phenology models are not yet calibrated
-            if module=="classic_GDD":
-                model = GDD_model(kwargs["Tdmin"])
-            elif module=="GDD_Richardson":
-                model = GDD_model_Richardson(kwargs["Tdmin"], kwargs["Tdmax"])
-            elif module=="wang":
-                model = wang_model(kwargs["Tdmin"], kwargs["Tdopt"], kwargs["Tdmax"])
-            elif module=="triangular_STICS":
-                model = triangular_STICS_model(kwargs["Tdmin"], kwargs["Tdmax"], kwargs["Tdstop"])
-            elif module=="triangular":
-                model = triangular_model(kwargs["Tdmin"], kwargs["Tdopt"], kwargs["Tdmax"])                
-            elif module=="sigmoid":
-                model = sigmoid_model(kwargs["a"],kwargs["b"])
-        else: # This is most likely in the scenario where each phenology has already been calibrated and run with calibrated parameters
-            if module=="classic_GDD":
-                model = GDD_model()
-            elif module=="GDD_Richardson":
-                model = GDD_model_Richardson()
-            elif module=="wang":
-                model = wang_model()
-            elif module=="triangular_STICS":
-                model = triangular_STICS_model()
-            elif module=="triangular":
-                model = triangular_model()                
-            elif module=="sigmoid":
-                model = sigmoid_model()
-        # elif len(kwargs) ==0: # If the dictionary is not empty, meaning additional keyword arguments are not supplied. This is most likely when the phenology models are already calibrated and started to be implemented
-        #     if module=="STICS_GDD":
-        #         dd_daily_ser = two_year_climate.apply(triangular_STICS_model)
-        #     elif module=="classic_GDD":
-        #         dd_daily_ser = two_year_climate.apply(dd_daily)
-        #     elif module=="triangular":
-        #         dd_daily_ser = two_year_climate.apply(triangular_model)
-        #     elif module=="sigmoid":
-        #         dd_daily_ser = two_year_climate.apply(sigmoid_model)
-        # Apply the chosen phenology models into the two year climate series
-        dd_daily_ser = two_year_climate.apply(model.implement)
-        # Convert daily value into cumulative value
-        cdd_daily = dd_daily_ser.cumsum()
-        # Find out the date where the threshold is firstly exceeded 
-        if not cdd_daily[cdd_daily >= thermal_threshold].empty:
-            date_index = cdd_daily[~(cdd_daily >= thermal_threshold)].argmax(skipna=True) + 1 # Return the last date where the condition of CCU is still not met. While the next day, the CCU must be achieved.
-            target_date = cdd_daily.index[date_index]
-        else:
-            target_date = np.nan # In case the required thermal demand is not reached, assign the NaN value 
-        if DOY_format:
+    if from_budburst: # Simulations from the previously simulated budburst DOY
+        budburst_ser = kwargs["budburst"] # Access the underlying budburst series
+        start_DOY_input = budburst_ser.copy(deep=True) # Copy the budburst series as the starting DOY series
+        # Obtain a list of two year combination list as the iteration list 
+        two_year_combo = sort_twoyear_combo(list(Years))
+        # Iterate over the two-year combo list 
+        for index, two_year_list in enumerate(two_year_combo):
+            two_year_climate = T_input.loc[T_input.index.year.isin(two_year_list)]
+            two_year_climate = two_year_climate.loc[two_year_climate.index >= start_DOY_input.iloc[index]]
+            # Apply the chosen phenology models into the two year climate series
+            dd_daily_ser = two_year_climate.apply(model.predict)
+            # Convert daily value into cumulative value
+            cdd_daily = dd_daily_ser.cumsum()
+            # Find out the date where the threshold is firstly exceeded 
+            if not cdd_daily[cdd_daily >= thermal_threshold].empty:
+                date_index = cdd_daily[~(cdd_daily >= thermal_threshold)].argmax(skipna=True) + 1 # Return the last date where the condition of CCU is still not met. While the next day, the CCU must be achieved.
+                target_date = cdd_daily.index[date_index]
+                target_year = target_date.year
+            else:
+                target_date = np.nan # In case the required thermal demand is not reached, assign the NaN value 
+                target_year = np.nan # the target year is NaN in case the simulated stage is NaN
+            # In case the DOY format is requried 
+            if DOY_format & (~pd.isnull(target_date)):
+                target_date = target_date.dayofyear
             # Create a series with a single entry representing the yearly DOY
-            Yearly_date = pd.Series(target_date.dayofyear, index=[target_date.year])
-        else:
-            Yearly_date = pd.Series(target_date, index=[target_date.year])
-        # Concatenate the resultant series into the empty series provided before 
-        Yearly_date_ser = pd.concat([Yearly_date_ser,Yearly_date], axis=0, join="outer",ignore_index = False)
-    # Return the predicted DOY by GDD
+            Yearly_date = pd.Series(target_date, index=[target_year])
+            # Concatenate the resultant series into the empty series provided before 
+            Yearly_date_ser = pd.concat([Yearly_date_ser,Yearly_date], axis=0, join="outer",ignore_index = False)
+    else: # Simulations from a user-specified DOY 
+        for Year in Years:
+            # Extract a given yearly climate 
+            annual_climate = T_input.loc[T_input.index.year.isin(Year)]
+            # Filter the annual climate data so that the climate data starts from T0
+            annual_climate = annual_climate.loc[annual_climate.index.dayofyear >= kwargs["T0"]]
+            # Apply the chosen phenology models into the two year climate series
+            dd_daily_ser = annual_climate.apply(model.predict)
+            # Convert daily value into cumulative value
+            cdd_daily = dd_daily_ser.cumsum()
+            # Find out the date where the threshold is firstly exceeded 
+            if not cdd_daily[cdd_daily >= thermal_threshold].empty:
+                date_index = cdd_daily[~(cdd_daily >= thermal_threshold)].argmax(skipna=True) + 1 # Return the last date where the condition of CCU is still not met. While the next day, the CCU must be achieved.
+                target_date = cdd_daily.index[date_index]
+                target_year = target_date.year
+            else:
+                target_date = np.nan # In case the required thermal demand is not reached, assign the NaN value 
+                target_year = np.nan # the target year is NaN in case the simulated stage is NaN
+            # In case the DOY format is requried 
+            if DOY_format & (~pd.isnull(target_date)):
+                target_date = target_date.dayofyear
+            # Create a series with a single entry representing the yearly DOY
+            Yearly_date = pd.Series(target_date, index=[target_year])
+            # Concatenate the resultant series into the empty series provided before 
+            Yearly_date_ser = pd.concat([Yearly_date_ser,Yearly_date], axis=0, join="outer", ignore_index = False)
+    # Return the predicted DOY series
     return Yearly_date_ser
 ############################################################################################################
+def detect_break_points(my_list, interval= 1, target_break_point="all"):
+    '''
+    Check and return any break points in a series of continuous or discontinuous numbers (can be float or integer) 
+    but with fixed interval between numbers. This is mainly used to check if there are any gap in the phenology data
 
-
+    Parameters
+    ----------
+    my_list : list, input list contains a series of continuous or discontinuous numbers with a fixed interval between numbers.
+    interval: int or float, the fixed interval between numbers in the input list.
+    target_break_point: int, the target ordinal break point specified by the user. For instance, there could have been many break points in a data series, 
+    where user can choose a given ordinal number.
+    '''
+    assert isinstance(my_list, list), "the input is not a list, {} is found".format(my_list.__class__)
+    
+    if all(a+interval==b for a, b in zip(my_list, my_list[1:])):
+        return "The input number in the list is continuous without any breaking points"
+    breaking_points ={}
+    for i, (a, b) in enumerate(zip(my_list, my_list[1:])):
+        if not a + interval==b:
+            breaking_points["break_point_"+ str(i+1)] = b # At the break point, using the next number from the list (not the first)
+        else:
+            continue
+    # Define the ordinal number of a target breaking point
+    if isinstance(target_break_point, int): # Return a given ordinal break point number 
+        target_key = list(breaking_points.keys())[target_break_point-1]
+        return breaking_points[target_key]
+    elif target_break_point=="all": # Attempt to collect all break points
+        output_points = []
+        if len(breaking_points)!=0:
+            for breaking_point_key in breaking_points.keys():
+                output_points.append(breaking_points[breaking_point_key])
+            return output_points
+        else:
+            return None
+############################################################################################################
 
 
 
