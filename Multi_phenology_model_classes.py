@@ -535,12 +535,20 @@ def phenology_model_run(T_input, thermal_threshold = 290, module = "STICS_GDD", 
             Yearly_date = pd.Series(target_date, index=[target_year])
             # Concatenate the resultant series into the empty series provided before 
             Yearly_date_ser = pd.concat([Yearly_date_ser,Yearly_date], axis=0, join="outer",ignore_index = False)
-    else: # Simulations from a user-specified DOY 
-        for Year in Years:
+    else: # Simulations from a user-specified DOY
+        T0_dates = kwargs["T0"] 
+        for index, Year in enumerate(Years):
+            if isinstance(T0_dates, pd.core.series.Series):
+                #assert isinstance(kwargs["T0"], pd.core.series.Series), "T0 input is not a panda series"
+                start_date = T0_dates.loc[Year] # Access the DOY from the "year" 
+            elif isinstance(T0_dates, (int, float)):
+                start_date = T0_dates # Here the T0 must be a fixed DOY
+            else:
+                raise "Simulation errors are encountered as a result of unspecified starting DOY (T0)"
             # Extract a given yearly climate 
-            annual_climate = T_input.loc[T_input.index.year.isin(Year)]
+            annual_climate = T_input.loc[T_input.index.year==Year]
             # Filter the annual climate data so that the climate data starts from T0
-            annual_climate = annual_climate.loc[annual_climate.index.dayofyear >= kwargs["T0"]]
+            annual_climate = annual_climate.loc[annual_climate.index.dayofyear >= start_date]
             # Apply the chosen phenology models into the two year climate series
             dd_daily_ser = annual_climate.apply(model.predict)
             # Convert daily value into cumulative value
