@@ -26,7 +26,7 @@ from datetime import datetime,timedelta
 from shapely.geometry import Point
 #%matplotlib inline
 # Append the script path to system path
-###############################################################################
+###############################################################################################################################################################################################################
 # Define the disk drive letter according to the username
 if getpass.getuser() == 'Clim4Vitis':
     script_drive = "H:\\"
@@ -36,7 +36,7 @@ elif getpass.getuser() == 'admin':
 elif (getpass.getuser() == 'CHENYAO YANG') or (getpass.getuser() == 'cheny'):
     script_drive = "D:\\"
 target_dir = r"Mega\Workspace\Study for grapevine\Study6_Multi_phenology_modelling_seasonal_forecast\script_collections" # Specific for a given study
-###############################################################################
+###############################################################################################################################################################################################################
 def add_script(script_drive, target_dir):
     '''
     Add script stored in the target directory to the system path
@@ -50,10 +50,10 @@ def add_script(script_drive, target_dir):
     script_path = join(script_drive, target_dir)
     sys.path.append(script_path)
     sys.path.append(dirname(script_path))  
-###############################################################################
+###############################################################################################################################################################################################################
 add_script(script_drive, target_dir)
 from Multi_phenology_model_classes import * # Add the multi-phenology model class script
-
+###############################################################################################################################################################################################################
 class Timer():
     
     def start(self):
@@ -67,7 +67,7 @@ class Timer():
     def end(self):
         self._duration()
         print(f"[BENCHMARK] End Time - {datetime.now()}")
-###############################################################################
+###############################################################################################################################################################################################################
 def mkdir(dir = None):
     #'''
     #Creates the given directory.
@@ -80,50 +80,7 @@ def mkdir(dir = None):
     if not dir is None:
         if not os.path.exists(dir):
             os.makedirs(dir)
-###############################################################################
-# Function Zones
-def dms2dd(degrees, minutes, seconds, direction): # Decimal minutes second to decimal degree
-    dd = float(degrees) + float(minutes)/60 + float(seconds)/(60*60)
-    if direction == 'W' or direction == 'S':
-        dd *= -1
-    return dd
-###############################################################################
-def dd2dms(deg):  # Decimal degree to decimal minutes second
-    d = int(deg)
-    md = abs(deg - d) * 60
-    m = int(md)
-    sd = (md - m) * 60
-    return [d, m, sd]
-###############################################################################
-def parse_dms(dms,preserve_dd=False): # Parse string into dms
-    if not preserve_dd:
-        parts = re.split('[^\d\w]+', dms)
-    else:
-        parts = re.split('[^\d.]+', dms)
-    return parts
-###############################################################################
-def parse_dms_from_string(string): # Parse string into dms
-    # Note the pattern is pre-specified and may vary from case to case
-    degree="".join(re.findall('\d+[o°]', string)).strip("o°")
-    minute="".join(re.findall("[o°]\s?\d+[´]", string)).strip("o°´")
-    second="".join(re.findall("[´]\d+[´´]", string)).strip("´´´")
-    return [degree,minute,second]
-###############################################################################
-# function to remove empty rows in excel
-# https://openpyxl.readthedocs.io/en/stable/styles.html#styling-merged-cells
-def remove(sheet):
-     # iterate the sheet by rows
-    for row in sheet.iter_rows():
-  
-      # all() return False if all of the row value is None
-        if all([cell.value is None for cell in row]):
-  
-      # detele the empty row
-            sheet.delete_rows(row[0].row, 1)
-  
-      # recursively call the remove() with modified sheet data
-            remove(sheet)
-###############################################################################          
+###############################################################################################################################################################################################################          
 def subset_list_from_list(list_of_list,filter_list):
     '''
     Select subset of a list-of-list with selection criteria provided by filter list.
@@ -142,7 +99,7 @@ def subset_list_from_list(list_of_list,filter_list):
         if len(sub_list_new)!=0:
             List_of_List_Target.append(sub_list_new)
     return List_of_List_Target
-###############################################################################
+###############################################################################################################################################################################################################
 def extract_dim_name(ds_nc):
     '''
     Extract the dimensional names from the xarray object
@@ -157,7 +114,7 @@ def extract_dim_name(ds_nc):
         elif "lat" in dimension: # The minimal naming convenction for latitude is lat, but can be possible with full name as latitude
             lat_name="".join(re.findall(r"lat\w*",dimension)) # Ger the exact latitude name
     return lon_name, lat_name
-###############################################################################
+###############################################################################################################################################################################################################
 def extract_site_data_series(ncfile,nc_var_identifier,lon1,lat1,time_period,method="nearest", _format="netCDF"):
     '''
     Extract site-specific time-series data. Note this function only works for nc file with one variable each
@@ -220,7 +177,7 @@ def extract_site_data_series(ncfile,nc_var_identifier,lon1,lat1,time_period,meth
     site_data_ser = pd.Series(site_data,index=time_period,name=nc_var_identifier)
     
     return site_data_ser
-##############################################################################
+###############################################################################################################################################################################################################
 def as_text(value):
     '''
     Convert any cell value into text
@@ -233,7 +190,7 @@ def as_text(value):
     else:
         value=str(value)
     return value
-###############################################################################
+###############################################################################################################################################################################################################
 def consecutive_merge_df(iterable,how="outer",on=None,copy=None):
     '''
     Merge df consecutively by choosing a set of common columns (used as join keys) that are available in both df 
@@ -256,7 +213,7 @@ def consecutive_merge_df(iterable,how="outer",on=None,copy=None):
     # Obtain the final df 
     final_df = iterable[-1] # With this method, only the last element from the iterable is required.
     return final_df
-##############################################################################################################################################################
+###############################################################################################################################################################################################################
 def collect_weather_data(target_datasets, lon, lat, time_period, dataset_loaded= False, var_identifiers = ['tx', 'tg', 'tn',"pr"], target_column_order = ['day','month','Year', 'tx', 'tg', 'tn', "pr", 'Lat','Lon'], **kwargs):
     '''
     Extract and collect the site-specific weather data from supplied gridded datasets with well-formated data columns
@@ -331,8 +288,7 @@ def collect_weather_data(target_datasets, lon, lat, time_period, dataset_loaded=
     if merged_df_final.isnull().values.any():
         merged_df_final.fillna(method="ffill",inplace=True)
     return merged_df_final
-##############################################################################################################################################################
-##############################################################################################################################################################
+###############################################################################################################################################################################################################
 def discrete_cmap(N, base_cmap=None):
     """Create an N-bin discrete colormap from the specified input map"""
     import matplotlib.pylab as plt
@@ -343,7 +299,7 @@ def discrete_cmap(N, base_cmap=None):
     # Colormap always map values between 0 and 1 to a bunch of colors.
     # base(0.5). The colormap object is callable, which will return a RGBA 4-element tuple
     return base
-##############################################################################################################################################################
+###############################################################################################################################################################################################################
 def determine_vmin_vmax(data_arrays,p_low=5,p_high=95):
     '''
     # Iterate the input xarray DataArray and determine the vmin and vmax
@@ -368,7 +324,7 @@ def determine_vmin_vmax(data_arrays,p_low=5,p_high=95):
         if cbar_vmax <= vmax:     
             cbar_vmax = vmax
     return cbar_vmin,cbar_vmax
-##############################################################################################################################################################
+###############################################################################################################################################################################################################
 def get_latlon_names(ds_array):
     """
     Extract the latitude and longitude vectors from the supplied Xarray DataArray
@@ -390,14 +346,14 @@ def get_latlon_names(ds_array):
     # lat_vec=ds_array[lat_name]
     # lon_vec=ds_array[lon_name]
     return (lon_name,lat_name)
-##############################################################################################################################################################
-def extract_fc_dataset(data_path, fc_var, ob_ser, lon1, lat1, ensemble_method=None, reduction_dim = None, **kwargs):
+###############################################################################################################################################################################################################
+def extract_fc_dataset(xr_concat, fc_var, ob_ser, lon1, lat1, ensemble_method=None, reduction_dim = None, **kwargs):
     '''
      Extract forecast datasets for a given point specified by lon and lat, while complement the gap period with observed data
       
      Mandatory Parameters
      ----------
-     data_path : list of data path, a list of path pointing to target forecast dataset at a specific forecast time/date/month.
+     xr_concat : xarray dataset, a pre-concatenated xarray dataset object (concatenate along the time dimension) to extract the timeseries for lon1 and lat1 
      fc_var: str, the meteorological variable name of the forecast dataset
      ob_ser: series, a series of extracted observed weather for this point
      lon: float, longitude of the site
@@ -408,17 +364,17 @@ def extract_fc_dataset(data_path, fc_var, ob_ser, lon1, lat1, ensemble_method=No
      ensemble_method: str, indicate how to compute the required statistical metric for all the ensemble members of seasonal forecast dataset 
      reduction_dim: str, indicate the dimension (ensemble memeber) that will be reduced by a specific ensemble method.     
     '''      
-    assert isinstance(data_path, list), "a list of input data path is required, but the format {} is found".format(type(data_path))
-    # Read the list of data path into xarray object that varied with different time span
-    list_datasets = []
-    for var_path in data_path:
-        xr_data = xr.open_dataset(var_path, mask_and_scale=True, engine = "netcdf4") # Load and open the xarray dataset
-        list_datasets.append(xr_data)
-        xr_data.close()
-    #list_datasets = [xr.open_dataset(var_path, mask_and_scale=True, engine = "netcdf4") for var_path in data_path]
-    # Concatenate all the xarray dataset objects into a signle object with the full time-series
-    xr_concat = xr.concat(list_datasets, dim = "time", data_vars ="all",
-                             coords = "minimal", join="inner", compat = "equals", combine_attrs = "override")
+    # assert isinstance(data_path, list), "a list of input data path is required, but the format {} is found".format(type(data_path))
+    # # Read the list of data path into xarray object that varied with different time span
+    # list_datasets = []
+    # for var_path in data_path:
+    #     xr_data = xr.open_dataset(var_path, mask_and_scale=True, engine = "netcdf4") # Load and open the xarray dataset
+    #     list_datasets.append(xr_data)
+    #     xr_data.close()
+    # #list_datasets = [xr.open_dataset(var_path, mask_and_scale=True, engine = "netcdf4") for var_path in data_path]
+    # # Concatenate all the xarray dataset objects into a signle object with the full time-series
+    # xr_concat = xr.concat(list_datasets, dim = "time", data_vars ="all",
+    #                          coords = "minimal", join="inner", compat = "equals", combine_attrs = "override")
     # Get the longitude and latitude name from the supplied dataset
     lon_name, lat_name = get_latlon_names(xr_concat) 
     # Calculate the ensemble statistics of all ensemble members for the forecast dataset
@@ -443,10 +399,11 @@ def extract_fc_dataset(data_path, fc_var, ob_ser, lon1, lat1, ensemble_method=No
     fc_ser_filled_subset = fc_ser_filled.loc[fc_ser_filled.index.year.isin(ob_ser.index.year.unique())]
     
     return fc_ser_filled_subset
-##############################################################################################################################################################
+###############################################################################################################################################################################################################
 def run_models(T_input):
     """
-    Run the model with prescribed temperature inputs and return simulated flowering and veraison DOY
+    Run the model with prescribed temperature inputs and return simulated flowering and veraison DOY.
+    By default, it now only runs for flowering and veraison stage using the sigmoid model
     
     Parameter    
     ----------
@@ -462,8 +419,53 @@ def run_models(T_input):
     DOY_point_ver = phenology_model_run(T_input, thermal_threshold=75.419, module="sigmoid", a=-39.99993, b=15.4698, 
                                             DOY_format=True, from_budburst= False, T0 = DOY_point_flo.copy(deep=True))
 
-    return DOY_point_flo, DOY_point_ver 
-##############################################################################################################################################################
+    return DOY_point_flo, DOY_point_ver
+###############################################################################################################################################################################################################
+def load_and_concat_da(data_path, concat_dim ="time"):
+    """
+    Load all .nc file into xarray dataset objects and concatenate them along the concat_dim
+    
+    Parameter    
+    ----------
+    data_path: iterable, an iterable of path or path-like object that points to the target .nc files 
+    concat_dim: str, the dimension to concatenate
+    """
+    # Create an empty list to append loaded xarray data array
+    list_datasets = []    
+    for var_path in data_path: # Iterate over each data path
+        xr_data = xr.open_dataset(var_path, mask_and_scale=True, engine = "netcdf4") # Load and open the xarray dataset
+        list_datasets.append(xr_data) # Append to the lsit
+        xr_data.close() # Close the data handler
+    # Concatenate over the specified dimension: concat_dim.        
+    xr_concat = xr.concat(list_datasets, dim = concat_dim, data_vars ="all",
+                                 coords = "minimal", join="inner", compat = "equals", combine_attrs = "override")
+    return xr_concat 
+###############################################################################################################################################################################################################
+def save_to_dataarray(data_arr, save_dim, output_data, point_dims):
+    """
+    Save the simulation data into the created xarray dataarray object. Currently, it only supports time-based dimension vector to save the data
+    
+    Parameter    
+    ----------
+    data_arr: xr.core.dataarray.DataArray, xarray data array where the target simulations are saved
+    save_dim: str, the dimension of DataArray to load the simulation data
+    output_data: pd.series, a timeseries of data in the form of panda series to be saved into the xarray data array object 
+    point_dims: dict, the point dimension used as indexing object when saving the output_data
+    """
+    assert isinstance(data_arr, (xr.core.dataset.Dataset, xr.core.dataarray.DataArray)), "the input xarray data array is not a required data array"
+    assert isinstance(output_data, pd.core.series.Series), "the data to be saved is not a panda series"
+
+    # Obtain the dimension vector that should correspond to the same vectionr in the xarray object
+    dim_vec = output_data.index # The output data requires that the index being the dimension looked up by the xarray
+    # The saving dimension must not in the indexing dimension of xarray data array
+    save_point = {key:value for key, value in point_dims.items() if key not in save_dim} 
+    # Iterate over the dimensional vector and output data
+    for dim_ele, data_ele in zip(dim_vec, output_data): # Here the output data and save dimension should be consistent in length
+        save_point_dim = save_point.copy()
+        save_point_dim.update({save_dim:dim_ele}) # Update the dict with each saving dimmensional element 
+        data_arr.loc[save_point_dim] = data_ele # Save a scaler value one at a time for the xarray object
+    # Not return anything because the data array object is loaded into the dictionary
+###############################################################################################################################################################################################################
 def sort_FCdatasets_by_FCdate(fc_path, fc_times, metero_var_dict_forecast= {"Tmin":"mn2t24", "Tmax":"mx2t24", "Prec":"tp"}, fc_type="monthly", data_format=".nc"):
     """
     Sort the forecast datasets by different forecast month/date
@@ -506,10 +508,18 @@ def sort_FCdatasets_by_FCdate(fc_path, fc_times, metero_var_dict_forecast= {"Tmi
             # Attach the list of collected data path into the target dictionary
             forecast_time_data[str(fc_time)][metero_var] = target_data 
     return forecast_time_data
-##############################################################################################################################################################
+###############################################################################################################################################################################################################
 def check_NaN(ser, fill_method1="quadratic",fill_method2="bfill",fill_method3="ffill", fill_extra=True):
     """
     Check if there are any NaN values in the simulated series, if yes, fill NaN
+    
+    Parameter    
+    ----------
+    ser: pd.Series, the input panda series to fill NaN
+    fill_method1: str, the specified interpolatio method to fill the NaN. As recommended by the developers, the quadratic function is the appropriate choice for time-series based analysis
+    fill_method2: str, the backward filling method used to fill NaN.
+    fill_method3: str, the forward filling method used to fill NaN.
+    fill_extra: bool, if an extra filling NaN operation should be implemented.
     """
     if any(pd.isnull(ser)):
         ser.interpolate(method=fill_method1, limit_direction="both", inplace=True)
@@ -524,7 +534,7 @@ def check_NaN(ser, fill_method1="quadratic",fill_method2="bfill",fill_method3="f
     else:
         #print("No NaN values are deteced, thereby no filling NaN is performed")
         return ser
-##############################################################################################################################################################
+###############################################################################################################################################################################################################
 def simulation_maps(file_name, data_arrays, shape_path, savepath, 
                     colormap, cbar_label, plot_dim= "space", origin=ccrs.CRS("EPSG:4326"), proj=ccrs.PlateCarree(), # ccrs.Geodetic()
                     subplot_row=10, subplot_col=3, fig_size=(6,21), specify_bound= False, extend="both", add_scalebar=False,
@@ -699,7 +709,25 @@ def simulation_maps(file_name, data_arrays, shape_path, savepath,
     mkdir(savepath)
     fig.savefig(join(savepath,file_name+fig_format), bbox_inches="tight",pad_inches=0.05, dpi=600)
     plt.close(fig)  
-##############################################################################################################################################################
+###############################################################################################################################################################################################################
+def plot_color_gradients(cmap_category, cmap_list, gradient):
+    # Create figure and adjust figure height to number of colormaps
+    nrows = len(cmap_list)
+    figh = 0.35 + 0.15 + (nrows + (nrows-1)*0.1)*0.22
+    fig, axs = plt.subplots(nrows=nrows, figsize=(6.4, figh))
+    fig.subplots_adjust(top=1-.35/figh, bottom=.15/figh, left=0.2, right=0.99)
+
+    axs[0].set_title(cmap_category + ' colormaps', fontsize=14)
+
+    for ax, cmap_name in zip(axs, cmap_list):
+        ax.imshow(gradient, aspect='auto', cmap=cmap_name)
+        ax.text(-.01, .5, cmap_name, va='center', ha='right', fontsize=10,
+                transform=ax.transAxes)
+
+    # Turn off *all* ticks & spines, not just the ones with colormaps.
+    for ax in axs:
+        ax.set_axis_off()
+###############################################################################################################################################################################################################
 class show_cmap_list:
     gradient = np.linspace(0, 1, 256)
     gradient = np.vstack((gradient, gradient))
@@ -728,35 +756,106 @@ class show_cmap_list:
                     'gnuplot', 'gnuplot2', 'CMRmap', 'cubehelix', 'brg',
                     'gist_rainbow', 'rainbow', 'jet', 'turbo', 'nipy_spectral',
                     'gist_ncar'])]
-    def plot_color_gradients(self, cmap_category, cmap_list):
-        # Create figure and adjust figure height to number of colormaps
-        nrows = len(cmap_list)
-        figh = 0.35 + 0.15 + (nrows + (nrows-1)*0.1)*0.22
-        fig, axs = plt.subplots(nrows=nrows, figsize=(6.4, figh))
-        fig.subplots_adjust(top=1-.35/figh, bottom=.15/figh, left=0.2, right=0.99)
-    
-        axs[0].set_title(cmap_category + ' colormaps', fontsize=14)
-    
-        for ax, cmap_name in zip(axs, cmap_list):
-            ax.imshow(self.gradient, aspect='auto', cmap=cmap_name)
-            ax.text(-.01, .5, cmap_name, va='center', ha='right', fontsize=10,
-                    transform=ax.transAxes)
-    
-        # Turn off *all* ticks & spines, not just the ones with colormaps.
-        for ax in axs:
-            ax.set_axis_off()
-    
-    def plot_cmap_list(self):
+            
+    def __call__(self):
         for cmap_category, cmap_list in self.cmaps:
-            plot_color_gradients(cmap_category, cmap_list)
-        # Show the cmaps 
+            nrows = len(cmap_list)
+            figh = 0.35 + 0.15 + (nrows + (nrows-1)*0.1)*0.22
+            fig, axs = plt.subplots(nrows=nrows, figsize=(6.4, figh))
+            fig.subplots_adjust(top=1-.35/figh, bottom=.15/figh, left=0.2, right=0.99)
+    
+            axs[0].set_title(cmap_category + ' colormaps', fontsize=14)
+    
+            for ax, cmap_name in zip(axs, cmap_list):
+                ax.imshow(self.gradient, aspect='auto', cmap=cmap_name)
+                ax.text(-.01, .5, cmap_name, va='center', ha='right', fontsize=10,
+                        transform=ax.transAxes)
+    
+            # Turn off *all* ticks & spines, not just the ones with colormaps.
+            for ax in axs:
+                ax.set_axis_off()
         plt.show()
-##############################################################################################################################################################
-def show_cmaps():
+###############################################################################################################################################################################################################
+def extract_nearest_neighbours(data_arr, data_ser, lon1, lat1, ens_dim=False, **kwargs):
     """
-    Define a shallow wrapper around the show_cmap_list class
+    Extract coordinate pairs to run from nearest neighbors in case NaN values are deteced in the current series
+    
+    Parameter    
+    ----------
+    data_arr: xr.core.dataarray.DataArray, the input data array to look up the nearest points where the no NaN series can be extracted.
+    data_ser: pd.Series, the input series with NaN vlaues detected
+    lon1: float, the longitude of the point.
+    lat1: float, the latitude of the point.
+    kwargs: any additional positional arguments
     """
-    show_cmap_list().plot_cmap_list()
+    # Obtain the longitude and latitude name used in the data array
+    lon_name, lat_name= get_latlon_names(data_arr)
+    # Extract the longitude and latitude vectors
+    lon_vec = data_arr.coords[lon_name]
+    lat_vec = data_arr.coords[lat_name]
+    # Check the integer index of the supplied lon and lat, where NaN is encountered
+    lon_index = int(np.where(lon_vec.data==lon1)[0])
+    lat_index = int(np.where(lat_vec.data==lat1)[0])
+    data_ser_test = data_ser.copy(deep=True)
+    if not all((lon_index>=0,lat_index>=0)): # "Negative values are found in coordinate indexing"
+        if len(kwargs)!=0:
+            kwargs["Bug_dict"].update({"lon"+str(lon1)+"_lat"+str(lat1):'Negative coordinate indexing are found that should not happen'})
+        print("Negative coordinate indexing are found that should not happen")
+        return data_ser_test
+    # None of situations below should happen;
+    if any(( (lon_index == 0) and (lat_index==0), # Both lon and lat are the first elements
+             (lon_index == (len(lon_vec)-1)) and (lat_index==(len(lat_vec)-1)), # Both lon and lat are the last elements
+             (lon_index==0) and (lat_index==(len(lat_vec)-1)), # First lon combines with the last lat
+             (lat_index==0) and (lon_index == (len(lon_vec)-1)) )): # First lat combines with the last lon
+        print("The boundary coordinate pairs are encountered in the first place and can not continue searching points to fill NaN")
+        if len(kwargs)!=0:
+            kwargs["Bug_dict"].update({"lon"+str(lon1)+"_lat"+str(lat1):'the boundary coordinate pairs are encountered in the first place and can not continue searching points to fill NaN!'}) 
+        return data_ser_test
+    # Create an empty list to store the simulation series
+    count=0
+    while any(pd.isnull(data_ser_test)):
+        # Return the updated lon1 and lat1
+        lon1_update = lon_vec.data[lon_index]
+        lat1_update = lat_vec.data[lat_index]
+        # Extract the respective simulation series for the updated lon and lat
+        if not ens_dim:
+            data_ser_test = data_arr.loc[{lon_name:lon1_update, lat_name:lat1_update}]
+        else:
+            data_ser_test = data_arr.loc[{lon_name:lon1_update, lat_name:lat1_update, "number":kwargs["ens_member"]}]
+        # Update the integer index to ensure searching for nearest index
+        # Nearest search along the lat and lon vectors sequentially            
+        if count%4==0:
+            lat_index = lat_index-1
+        elif count%4==1:
+            lat_index = lat_index+1
+        elif count%4==2:
+            lon_index = lon_index-1
+        elif count%4==3:
+            lon_index = lon_index+1
+        #  Count plus one for each iteration
+        count += 1
+        # The index can not exceed the length of the vector of either longitude or latitude or being negative
+        #list(product((lon_index<=0,lat_index<=0,(lon_index +1) >= len(lon_vec),(lat_index +1) >= len(lat_vec)),repeat=2))
+        if lon_index <= 0:
+            lon_index = 0
+        elif lat_index <= 0:
+            lat_index = 0
+        elif (lon_index +1) >= len(lon_vec):
+            lon_index = len(lon_vec)-1
+        elif (lat_index +1) >= len(lat_vec):
+            lat_index = len(lat_vec)-1
+        # None of situations below should happen;
+        if any((  (lon_index == 0) and (lat_index==0), # Both lon and lat are the first elements
+                 (lon_index == (len(lon_vec)-1)) and (lat_index==(len(lat_vec)-1)), # Both lon and lat are the last elements
+                 (lon_index==0) and (lat_index==(len(lat_vec)-1)), # First lon combines with the last lat
+                 (lat_index==0) and (lon_index == (len(lon_vec)-1)) )): # First lat combines with the last lon
+            print("The boundary coordinate pairs are encountered and can not continue searching points to fill NaN")
+            if len(kwargs)!=0:
+                kwargs["Bug_dict"].update({"lon"+str(lon1)+"_lat"+str(lat1):'the boundary coordinate pairs are encountered and can not continue searching points to fill NaN!'}) 
+            return data_ser_test
+        # Here the lon_index and lat_index need to be checked if they are unchanged for a certain number of loops
+    return data_ser_test # When the while loop is break, the data_ser_test is already free of any NaN values.
+###############################################################################################################################################################################################################
 # # Get the respective DOY of the dormancy break
 # dormancy_break_DOY = dormancy_break_date.dayofyear
 # # Determine if the year at which the dormancy date is predicted is in the preceding year or in the next year 
@@ -771,7 +870,7 @@ def show_cmaps():
 #     path = _path(metadata, new=True)
 #     dataset = data_array.to_dataset(name=metadata['variable'])
 #     dataset.to_netcdf(path, mode='w', format="NETCDF4", engine="netcdf4")
-###############################################################################
+#++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 # 1. Specify all user-dependent path 
 # 1.1 Path for local meteorological files
 root_path=r"H:\Grapevine_model_SeasonalForecast_Budburst_study6" # Main path
@@ -780,7 +879,7 @@ forecast_path = r"H:\Grapevine_model_SeasonalForecast_Budburst_study6\Forecast_d
 output_path = join(root_path,"output") # Define the output path
 meta_data_path = join(root_path,"metadata") # Metadata path
 var_identifiers_EOBS = ['tx', 'tg', 'tn'] # Define a list of variable short names for E-OBS dataset 
-target_dataset = [] # Define an empty list to collect target gridded datasets
+target_dataset = [] # Define an empty list to collect target observational gridded datasets. Here it only referes to observational weather data
 for ncfile in glob.glob(join(E_OBS_path,"*.nc")):
     if any(varname in ncfile for varname in var_identifiers_EOBS):
         target_dataset.append(ncfile)
@@ -791,7 +890,7 @@ study_region = "PT_continent" # Define the name for study region.
 study_shape = [shape for shape in study_shapes if study_region in shape][0] # Squeeze the list
 proj = ccrs.PlateCarree() # Define the target projection CRS
 GDF_shape= gpd.read_file(study_shape).to_crs(proj) # Load the shape file into a geographic dataframe
-###############################################################################
+#++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 # 2. Collect a list of points that comprise the study region
 determine_lat_lon_vector = "by_shape" # Collect data points from shape file or from forecast dataset itself
 fc_times = [2, 3, 4]  # Specify the forecast time either by month or by day. But this should be case-specific
@@ -871,24 +970,23 @@ elif determine_lat_lon_vector=="by_dataset": # Infer the study coordinates from 
         if not any(pd.isnull(da[list(da.data_vars.keys())[0]].sel({lon_name:coordinate[0], lat_name: coordinate[1]}).data).flatten()):
             grid_point = Point(coordinate)
             target_points.append(grid_point)
-#++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+#++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 # 3. Define essential inputs and output locations
 # 3.1 Define the study years and desired column order for the weather data
 begin_year = 1993 # The starting year needs to be one year before the actual starting year  
-end_year = 2017
-study_period = np.arange(begin_year,end_year+1,1)
+end_year = 2017 
+study_period = np.arange(begin_year,end_year+1,1) # Define the study period
 date_range_output= pd.date_range("{}-12-31".format(begin_year), "{}-12-31".format(end_year), freq="Y") # Date index written into output file
 metero_var = ["tn","tg","tx"] # Define the meteorological variable that is going to be the input for the phenology model
-metero_var_dict_OB = {"Tmin":"tn", "Tmean":"tg", "Tmax":"tx"}
+metero_var_dict_OB = {"Tmin":"tn", "Tmean":"tg", "Tmax":"tx"} # Define the respective meteorological dict
 target_column_order = ['day','month','Year', *metero_var, 'lat','lon'] # Pre-specified an order of columns for meteorological data
 forecast_time = [2, 3, 4]  # Define the forecast month; This should be case-specific
 ensemble_members = 25 # Define the number of ensemble used in the seasonal forecast
 resolution = 0.1 # Define the gridding resolution
 decimal_place = abs(decimal.Decimal(str(resolution)).as_tuple().exponent) # Extract number of decimal places in the input float from the defined resolution
-# 3.2 Create the annual output template to save results
 #time_vector = pd.date_range("{}-01-01".format(begin_year), "{}-12-31".format(end_year), freq="D")
 #time_vector = pd.date_range("{}-12-31".format(str(begin_year)), "{}-12-31".format(str(end_year)), freq="Y")
-# 3.2.1 Generate vector values for each dimensional coordinate
+# 3.2 Generate vector values for each dimensional coordinate
 time_vector = study_period
 # Note here the shapely object will generate random floating points when extracting the longitude and latitude
 lon_target_vector = np.unique([round(target_point.x, decimal_place) for target_point in target_points]) # A unique list of longitude
@@ -897,31 +995,31 @@ coords_xarray = [ ("lat", lat_target_vector), ("lon", lon_target_vector)] # Crea
 # Randomly generate a 3-D dataset to pre-populate the dataset
 # random_data = np.random.rand(len(lat_target_vector), len(lon_target_vector))
 # random_data[:] = np.nan
-# 3.2.2 Generate the output template for saving the results
+# 3.3 Generate the output template for saving the results
+# 3.3.1 Define the output variable names and dimensions of output coordinates
 outputvars_list = ["flowering_pred","veraison_pred"]
 output_template_score = xr.DataArray(coords=coords_xarray) # Create a dimensional template xarray object that is going to be used as the output structure
 output_template_sm_ob = xr.DataArray(coords=coords_xarray + [("time", date_range_output)]) # Create a dimensional template xarray object object that is going to be used as the output structure
 output_template_sm_fc = xr.DataArray(coords=coords_xarray + [("time", date_range_output), ("number", range(ensemble_members))]) # Create a dimensional template xarray object object that is going to be used as the output structure
-# 3.2.3 Create a dictionary of output xarray object
-forecast_score_dict = {} # Dictionary to store performance scores
+# 3.3.2 Create a dictionary of output xarray object to save forecast scores
+forecast_score_dict = {} # Dictionary to store forecast performance scores
 for forecast_month in forecast_time:
     forecast_score_dict[str(forecast_month)+"_flo"] = output_template_score.copy(deep=True)
     forecast_score_dict[str(forecast_month)+"_ver"] = output_template_score.copy(deep=True)
-forecast_sm_dict ={} # Dictionary to store simulation data
+# 3.3.3 Create a dictionary of output xarray object to save simulations with observed weather
+forecast_ob_dict ={} # Dictionary to store simulated data with observed weather
+forecast_ob_dict["ob_flo"] = output_template_sm_ob.copy(deep=True)
+forecast_ob_dict["ob_ver"] = output_template_sm_ob.copy(deep=True)
+# 3.3.4 Create a dictionary of output xarray object to save simulations with forecast datasets
+forecast_sm_dict ={} # Dictionary to store simulated data with forecast data
 for forecast_month in forecast_time:
-    forecast_sm_dict[str(forecast_month)+"ob_flo"] = output_template_sm_ob.copy(deep=True)
-    forecast_sm_dict[str(forecast_month)+"ob_ver"] = output_template_sm_ob.copy(deep=True)
+    # forecast_sm_dict[str(forecast_month)+"ob_flo"] = output_template_sm_ob.copy(deep=True)
+    # forecast_sm_dict[str(forecast_month)+"ob_ver"] = output_template_sm_ob.copy(deep=True)
     forecast_sm_dict[str(forecast_month)+"sm_flo"] = output_template_sm_fc.copy(deep=True)
     forecast_sm_dict[str(forecast_month)+"sm_ver"] = output_template_sm_fc.copy(deep=True)
-# output_dict = {var : output_template.copy(deep=True) for var in outputvars_list}
-# output_dict_sm = {var : output_template_sm.copy(deep=True) for var in outputvars_list}
-# output_flower = output_dict["flowering_pred"] # Access the template xarray object for flowering stage
-# output_veraison = output_dict["veraison_pred"] # Access the template xarray object for veraison stage
-# output_flower_sm = output_dict_sm["flowering_pred"]
-# output_veraison_sm = output_dict_sm["veraison_pred"]    
-    
-# 3.2.5 Pre-load the required datasets into python variables
-xarray_data_dict = {}
+# 3.4 Pre-load the required datasets into dictionary to avoid reading files each time per iteration
+# 3.4.1 Pre-load the observed weather datasets, i.e. E-OBS
+xarray_data_dict = {} 
 resolution = 1
 # Read historical weather datasets and interpolate them into target resolutions
 if determine_lat_lon_vector=="by_dataset":
@@ -953,7 +1051,25 @@ else:
             xarray_data.close()
         else:
             continue
-#++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+# 3.4.2 Pre-load the weather forecast datasets
+forecast_data_dict = {} 
+# Define the meteorological variable names
+Tmin_varname = metero_var_dict_forecast["Tmin"]
+Tmax_varname = metero_var_dict_forecast["Tmax"]
+for forecast_month in forecast_time_data.keys():
+    if forecast_month not in forecast_data_dict.keys():
+        forecast_data_dict[forecast_month] ={}
+    forecast_data_var_dict = forecast_time_data[forecast_month]
+    # Load the list of path for pre-organized forecast datasets
+    Tmin_list_path = forecast_data_var_dict["Tmin"]
+    Tmax_list_path = forecast_data_var_dict["Tmax"]
+    # Load all the path in the list into xarray and concate them all
+    Tmin_da = load_and_concat_da(Tmin_list_path)
+    Tmax_da = load_and_concat_da(Tmax_list_path)
+    # Attach the pre-load data into the target dict
+    forecast_data_dict[forecast_month][Tmin_varname] = Tmin_da
+    forecast_data_dict[forecast_month][Tmax_varname] = Tmax_da
+#++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 # 4. Run the simulations throughout target regions and compute the forecast score for each point
 Bug_dict = {} # Create a bug dictionary to catch the bugs during simulations
 # Iterate over each target grid point
@@ -963,8 +1079,10 @@ for index, target_point in enumerate(target_points):
     # Get the latitude and longitude for the point
     lon1 = round(target_point.x, decimal_place)
     lat1 = round(target_point.y, decimal_place)
-    # Create a dictionary point that is represented by its lat and lon
-    point = {output_template_score.dims[0]:lat1, output_template_score.dims[1]:lon1} 
+    # Create point dimensional dictionaries that are used for saving simulation data
+    point = {output_template_score.dims[0]:lat1, output_template_score.dims[1]:lon1} # Basic point dim that only contains lat1 and lon1
+    point_time = point.copy() # Create a new point dim via copying original point dim
+    point_time["time"] = date_range_output # Update the basic point dimension with extra time dimensions    
     print("Start running for point No.{} out of total {}".format(str(index+1),str(len(target_points))))  
     # Extract the daily timeseries of observed weather datasets for the specified grid point
     site_data_df  = collect_weather_data(xarray_data_dict, lon1, lat1, study_period, dataset_loaded= True, 
@@ -979,109 +1097,141 @@ for index, target_point in enumerate(target_points):
     T_mean.name ="tas" # Reset the Tmean series name into "tas"
     T_mean_ob = T_mean.loc[T_mean.index.year.isin(study_period)] # Subset the temperature data to cover the study period only
     try: # # Run the model to get the simulated flowering and veraison date based on the observed weather data
-        flo_ob, ver_ob = run_models(T_mean_ob)
-        point_time = point.copy()
-        point_time["time"] = date_range_output # Update the point dimension with extra time dimension
-        forecast_sm_dict[str(forecast_month)+"ob_flo"].loc[point_time] = flo_ob
-        forecast_sm_dict[str(forecast_month)+"ob_ver"].loc[point_time] = ver_ob
+        flo_ob, ver_ob = run_models(T_mean_ob) # Perform simulations with observed weather 
+        # point_coords = {key:([value] if key not in "time" else value) for key,value in point_time.items()} # The same key used from point time but with different values. Use if else in dict comprehension
+        # a = xr.DataArray(np.expand_dims(flo_ob, axis=(0,1)), coords= point_coords, dims=list(forecast_ob_dict["ob_flo"].dims))
     except:
         Bug_dict.update({"lon"+str(lon1)+"_lat"+str(lat1):'Issues in simulated values with observed weather!'}) # catch the erroneous simulation values
-        continue
-    # 3.3.2 Extract the seasonal forecast dataset
-    for forecast_month in forecast_time_data.keys():
-        forecast_data_var_dict = forecast_time_data[forecast_month]
-        Tmin_list_path = forecast_data_var_dict["Tmin"]
-        Tmax_list_path = forecast_data_var_dict["Tmax"]
-        # Compute the P-correlation coefficient for all forecast ensemble members and adopts the mean value
+    # Re-set the datetime index to be consistent with those in the xarray object 
+    flo_ob.index = date_range_output
+    ver_ob.index = date_range_output
+    # Check NaN values for simulation series. If any, fill NaN for simulation series from the nearest neighbours
+    if any(pd.isnull(flo_ob)):
+        # Fill NaN values of simulations from those of nearest neighbours
+        flo_ob = extract_nearest_neighbours(forecast_ob_dict["ob_flo"], flo_ob, lon1, lat1, Bug_dict=Bug_dict)
+        # In case this still failed, append it to the Bug_dict and continue to the next iteration
+        if any(pd.isnull(flo_ob)):
+            Bug_dict.update({"lon"+str(lon1)+"_lat"+str(lat1):'failed to fill NaN for the flowering stage at this point'}) # catch the points that NaN values filling failed
+            forecast_ob_dict["ob_flo"].loc[point_time] = -999
+            continue
+    if any(pd.isnull(ver_ob)):
+        # Fill NaN values of simulations from those of nearest neighbours
+        ver_ob = extract_nearest_neighbours(forecast_ob_dict["ob_ver"], ver_ob, lon1, lat1, Bug_dict=Bug_dict)
+        # In case this still failed, append it to the Bug_dict and continue to the next iteration
+        if any(pd.isnull(ver_ob)):
+            Bug_dict.update({"lon"+str(lon1)+"_lat"+str(lat1):'failed to fill NaN for the veraison stage at this point'}) # catch the points that NaN values filling failed
+            forecast_ob_dict["ob_ver"].loc[point_time] = -999
+            continue
+    # Save the timeseries of simulated data into the xarray data array objects for point with simulation series free of NaN
+    save_to_dataarray(forecast_ob_dict["ob_flo"], "time", flo_ob, point_time)
+    save_to_dataarray(forecast_ob_dict["ob_ver"], "time", ver_ob, point_time)
+    # Iterate over the seasonal forecast datasets for each forecast month and each ensemble member (a nested for loop)
+    for forecast_month in forecast_data_dict.keys():
+        xr_concat_fc_data = forecast_data_dict[forecast_month] # Access the pre-loaded xarray dataset object at a given forecast date
+        # Create empty list to store the Pearson correlation coefficient computed for each ensemble member at a given forecast month/date
         corre_fc_ensemble_flo = []
         corre_fc_ensemble_ver = []
+        # Iterate over the ensemble memeber under a given forecast month/date
         for ens_member in range(ensemble_members):
             point_time["number"] = ens_member # Update the point dimension with extra ensemble member dimension
             # Extract the forecast datasets (with gap filled) at a specific forecast date/time/month for a given point
-            Tmin_fc = extract_fc_dataset(Tmin_list_path, metero_var_dict_forecast["Tmin"], T_min, lon1, lat1, ensemble_member=ens_member)
-            Tmax_fc = extract_fc_dataset(Tmax_list_path, metero_var_dict_forecast["Tmax"], T_max, lon1, lat1, ensemble_member=ens_member)
+            Tmin_fc = extract_fc_dataset(xr_concat_fc_data[Tmin_varname], Tmin_varname, T_min, lon1, lat1, ensemble_member=ens_member)
+            Tmax_fc = extract_fc_dataset(xr_concat_fc_data[Tmax_varname], Tmax_varname, T_max, lon1, lat1, ensemble_member=ens_member)
             # Ensure the length of extracted series are the same and free of NaN values
             if any(np.logical_or(pd.isnull(Tmin_fc), pd.isnull(Tmax_fc))) or (len(Tmin_fc) != len(Tmax_fc)):
-                Bug_dict.update({"lon"+str(lon1)+"_lat"+str(lat1):'Errors in extracted forecast data'}) # catch the erroneous instances
+                Bug_dict.update({"lon"+str(lon1)+"_lat"+str(lat1):'Errors in extracted forecast datasets'}) # catch the erroneous instances
                 Tmin_fc = check_NaN(Tmin_fc) # Fill NaN values if any
-                Tmax_fc = check_NaN(Tmin_fc) # Fill NaN values if any
-            # Compute the mean series 
+                Tmax_fc = check_NaN(Tmax_fc) # Fill NaN values if any
+            # Compute the mean meteorological series 
             T_mean_fc = (Tmin_fc + Tmax_fc)/2
             # Subset the temperature data to cover the study period only
             T_mean_fc = T_mean_fc.loc[T_mean_fc.index.year.isin(study_period)]
-            # Obtain the prediction for dormancy break and budburst dates
-            # dormancy_out, budburst_out = run_BRIN_model(T_min, T_max, CCU_dormancy = 144.19, T0_dormancy = 213, CGDH_budburst = 823.9, 
-            #                    TMBc_budburst= 25, TOBc_budburst = 0.42, Richarson_model="daily") # The parameter set is applied for TN calibrated from Luisa. L. et al. 2020 
-            # if any(budburst_out.isnull()):
-            #     budburst_out.fillna(method="ffill", inplace=True)
-            # Run the sigmoid model that is calibrated for TN
-            # Obtain the predicted phenology DOY over study period for a given point using a specific phenology module # Mean parameter settings for TN
             try:
+                ######################Section for running the budburst model######################
+                # dormancy_out, budburst_out = run_BRIN_model(T_min, T_max, CCU_dormancy = 144.19, T0_dormancy = 213, CGDH_budburst = 823.9, 
+                #                    TMBc_budburst= 25, TOBc_budburst = 0.42, Richarson_model="daily") # The parameter set is applied for TN calibrated from Luisa. L. et al. 2020 
+                ######################Section for running the budburst model######################
                 flo_fc, ver_fc = run_models(T_mean_fc) # Run the model to get the simulated flowering and veraison date based on the forecast weather data
-                # Attach unmodified simulation series into target output files
-                forecast_sm_dict[str(forecast_month)+"sm_flo"].loc[point_time] = flo_fc
-                forecast_sm_dict[str(forecast_month)+"sm_ver"].loc[point_time] = ver_fc
-                # Check all the simulated series if there are any NaN values
-                target_dict = {} # Create an empty dictionary to store results
-                for key, data_ser in {"flo_ob_fillNaN": flo_ob, "ver_ob_filllNaN": ver_ob, "flo_sm_fillNaN": flo_fc, "ver_sm_fillNaN": ver_fc}.items():
-                    if any(pd.isnull(data_ser.index)):
-                        data_ser.index = pd.Index(study_period) # The index column should always conform to the study period
-                    data_ser_noNaN = check_NaN(data_ser) # Fill NaN values if any
-                    target_dict[key] = data_ser_noNaN          
-                # Compute the correlation coefficient
-                flo_corr = np.corrcoef(np.array(target_dict["flo_ob_fillNaN"]), np.array(target_dict["flo_sm_fillNaN"]),  rowvar=False)[0][1]
-                ver_corr = np.corrcoef(np.array(target_dict["ver_ob_filllNaN"]), np.array(target_dict["ver_sm_fillNaN"]), rowvar=False)[0][1]
-                # Append the correlation coefficient into the result list
-                corre_fc_ensemble_flo.append(flo_corr)
-                corre_fc_ensemble_ver.append(ver_corr)
-            # # Check if there are any NaN values in the series
+            # Check if there are any NaN values in the series
             except:
-                Bug_dict.update({"lon"+str(lon1)+"_lat"+str(lat1):'Issues in simulated values!'}) # catch the erroneous simulation values
-                continue # Skip errorneous ensemble simulation
+                Bug_dict.update({"lon"+str(lon1)+"_lat"+str(lat1):'Issues in simulated values with forecast datasets!'}) # catch the erroneous simulation values
+                #continue # Skip errorneous ensemble simulation
+            # Re-set the datetime index to be consistent with those in the xarray object
+            flo_fc.index = date_range_output
+            ver_fc.index = date_range_output
+            # Check and fill NaN for simulation series if any
+            if any(pd.isnull(flo_fc)):
+                flo_fc = extract_nearest_neighbours(forecast_sm_dict[str(forecast_month)+"sm_flo"], flo_fc, lon1, lat1, ens_dim=True, ens_member=ens_member, Bug_dict=Bug_dict)
+                # Fill NaN values of simulations from those of nearest neighbours. But in case this failed, append it to the Bug_dict and continue to the next iteration
+                if any(pd.isnull(flo_fc)):
+                    Bug_dict.update({"lon"+str(lon1)+"_lat"+str(lat1):'failed to fill NaN for the flowering stage at this point for the ensemble member {}'.format(ens_member)}) # catch the points that NaN values filling failed
+                    forecast_sm_dict[str(forecast_month)+"sm_flo"].loc[point_time] = -999 
+                    continue
+            if any(pd.isnull(ver_fc)):
+                ver_fc = extract_nearest_neighbours(forecast_sm_dict[str(forecast_month)+"sm_ver"], ver_fc, lon1, lat1, ens_dim=True, ens_member=ens_member, Bug_dict=Bug_dict)
+                # Fill NaN values of simulations from those of nearest neighbours. But in case this failed, append it to the Bug_dict and continue to the next iteration
+                if any(pd.isnull(ver_fc)):
+                    Bug_dict.update({"lon"+str(lon1)+"_lat"+str(lat1):'failed to fill NaN for the veraison stage at this point for the ensemble member {}'.format(ens_member)}) # catch the points that NaN values filling failed
+                    forecast_sm_dict[str(forecast_month)+"sm_ver"].loc[point_time] = -999 
+                    continue
+            # Attach the simulation simulation series into target output files
+            save_to_dataarray(forecast_sm_dict[str(forecast_month)+"sm_flo"], "time", flo_fc, point_time)
+            save_to_dataarray(forecast_sm_dict[str(forecast_month)+"sm_ver"], "time", ver_fc, point_time)
+            # Compute the correlation coefficient
+            flo_corr = np.corrcoef(flo_ob, flo_fc, rowvar=False)[0][1]
+            ver_corr = np.corrcoef(ver_ob, ver_fc, rowvar=False)[0][1]
+            # Append the correlation coefficient into the result list
+            corre_fc_ensemble_flo.append(flo_corr)
+            corre_fc_ensemble_ver.append(ver_corr)
         # Compute the ensemble mean of correlation coefficient
         ens_corre_flo = np.nanmean(corre_fc_ensemble_flo)
         ens_corre_ver = np.nanmean(corre_fc_ensemble_ver)
-        # Attach the computed ensemble mean of correlation coefficient into the dictionary
-        forecast_score_dict[str(forecast_month)+"_flo"].loc[point] = ens_corre_flo
-        forecast_score_dict[str(forecast_month)+"_ver"].loc[point] = ens_corre_ver
-        # Attach the results to taget .nc file
-        # Write the timeseries of DOY of a given point into the data array
-        # for index, (DOY_flo, DOY_ver) in enumerate(zip(flo_ob, ver_ob)):
-        #     #target_year = pd.to_datetime("{}-12-31".format(str(int(DOY_point.index[index]))), format="%Y-%m-%d")# Obtain the year information
-        #     if flo_ob.index[index] == ver_ob.index[index]: # Test that the flowering and veraison DOY are reached in the same year
-        #         target_year = flo_ob.index[index] # Obtain the target year by accessing the year of simulated flowering DO
-        #     elif flo_ob.index[index] != ver_ob.index[index]: # In case the flowering and veraison stage are not reached in the same year
-        #         Bug_dict.update({"lon"+str(lon1)+"_lat"+str(lat1):'NaN'}) # catch the erroneous simulation values
-        #         continue
+        # Attach the computed ensemble mean of correlation coefficient into the target xarray data array object
+        forecast_score_dict[str(forecast_month)+"_flo"].loc[point] = ens_corre_flo # Since here it is already a scaler-based saving, it is not necessary to use save_to_dataarray()
+        forecast_score_dict[str(forecast_month)+"_ver"].loc[point] = ens_corre_ver # Since here it is already a scaler-based saving, it is not necessary to use save_to_dataarray()
     print("Finish processing for point No.{} out of total {}".format(str(index+1),str(len(target_points))))  
     timer.end()
-# 3.4 Write the output into the target 3-D dataset
-output_path = join(output_path,"forecast_performance")
-output_path_sm = join(output_path,"simulations")
+# Write the output into the target 3-D dataset
+output_path = join(output_path,"simulation_score")
+output_path_sm = join(output_path,"simulation_fc")
+output_path_ob = join(output_path,"simulation_ob")
+# Make directories to save files
 mkdir(output_path)
 mkdir(output_path_sm)
-# Save the score arrays into local disk
+mkdir(output_path_ob)
+# Save the score arrays into .nc files at local disk
 for key ,value in forecast_score_dict.items():
     output_da = value.to_dataset(name = key)
     # Save to disk as .nc file
     output_da.to_netcdf(join(output_path,"{}.nc".format(key)), mode='w', format="NETCDF4", engine="netcdf4")
-# Save the simulation arrays into local disk
+# Save the simulation arrays with forecast datasets into .nc files at local disk
+for key ,value in forecast_ob_dict.items():
+    output_da = value.to_dataset(name = key)
+    # Save to disk as .nc file
+    output_da.to_netcdf(join(output_path_sm,"{}.nc".format(key)), mode='w', format="NETCDF4", engine="netcdf4")
+# Save the simulation arrays with observed weather datasets into .nc files at local disk
 for key ,value in forecast_sm_dict.items():
     output_da = value.to_dataset(name = key)
     # Save to disk as .nc file
     output_da.to_netcdf(join(output_path_sm,"{}.nc".format(key)), mode='w', format="NETCDF4", engine="netcdf4")
-# 3.5 Save the datasets into .nc file in the disk
-# output_flowering_da.to_netcdf(join(output_path,"flowering_pred_corr.nc"), mode='w', format="NETCDF4", engine="netcdf4")
-# output_veraison_da.to_netcdf(join(output_path,"veraison_pred_corr.nc"), mode='w', format="NETCDF4", engine="netcdf4")
-#++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-# 4. Visualize the results
-# 4.1 Visualize for the flowering and veraison stage
+#++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+# 5. Visualize the results
+# 5.1 Visualize the results for the simulated year-to-year flowering and veraison stages using observed weather 
+# Check all supported cmaps in mathplotlib
+mathplot_lib_cmaps = show_cmap_list()
+mathplot_lib_cmaps()
+# Define the requried cmaps
 cmap_dict = {"flowering_pred":discrete_cmap(6, base_cmap="YlGn"), 
             "veraison_pred" :discrete_cmap(6, base_cmap="YlGnBu")} # plt.cm.get_cmap("autumn_r")}
+# Empirically define the bounds for the flowering and veraison stage
 cmap_bounds =  {"flowering_pred":np.linspace(140, 220, cmap_dict["flowering_pred"].N-1), 
             "veraison_pred" :np.linspace(200, 280, cmap_dict["veraison_pred"].N-1)}
-# 4.2 Plot the simulations on the map
-map_proj = ccrs.PlateCarree()
+# 5.1.1 Define the essential input variables
+map_proj = ccrs.PlateCarree() # Define the projection type
+outputvars_list = ["flowering_pred","veraison_pred"] # Define a list of output variables
+output_dict = {"flowering_pred": forecast_ob_dict["ob_flo"], 
+                "veraison_pred": forecast_ob_dict["ob_ver"]} # Define the output dict
+# 5.1.2 Iterate over each output variable to make the plot, i.e. flowering and veraison stage
 for plot_var in outputvars_list:
     output__array = output_dict[plot_var]
     # Filter the output array
@@ -1094,11 +1244,13 @@ for plot_var in outputvars_list:
                     cmap_use, "{} DOY".format(re.findall(r"\w+_pred",plot_var)[0].strip("pred_")), plot_dim= "space",
                     subplot_row=6, subplot_col=5, fig_size=(11,15), extend="both", add_scalebar=False, specify_bound=True,
                     fig_format=".png", bounds = cmap_bounds[plot_var])
-# 4.3 Plot the simulated correlation coefficient on the map
+# 5.2 Visualize the results for the performance score, i.e. correlation coefficient
+# 5.2.1 Define the path to target .nc files that store the data to plot
 forecast_flo_corre = glob.glob(join(output_path,"*flo.nc"))
 forecast_ver_corre = glob.glob(join(output_path,"*ver.nc"))
-show_cmaps() # Call show maps to show a list of available cmaps
+# 5.2.2 Define the cmap to use in correlation coefficient plot
 cmap_corre = discrete_cmap(10, base_cmap="summer_r")
+# 5.2.3 Define the forecast month variable dictionary
 forecast_month_var = {"2_flo": "February_fc_flowering",
                  "3_flo": "March_fc_flowering",
                  "4_flo": "April_fc_flowering",
@@ -1106,18 +1258,16 @@ forecast_month_var = {"2_flo": "February_fc_flowering",
                  "3_ver": "March_fc_veraison",
                  "4_ver": "April_fc_veraison"
                  }
-# Sort the dataset so that the results are presented from February, March and April onwards
-forecast_list = [xr.open_dataset(data_path, mask_and_scale=True, engine = "netcdf4") for data_path in forecast_flo_corre+forecast_ver_corre]
-forecast_list.sort(key=lambda x : int(re.compile(r"\d+_").findall(list(x.data_vars.keys())[0])[0].strip("_"))) # Sort by defauly is a inplace operation
-forecast_list_sorted = [dataset[list(dataset.data_vars.keys())[0]] for dataset in forecast_list]
-# Plot the forecast performance scores
+# 5.2.4 Collect and sort the plot datasets
+forecast_list = [xr.open_dataset(data_path, mask_and_scale=True, engine = "netcdf4") for data_path in forecast_flo_corre+forecast_ver_corre] # Collect all output datasets into a single list
+forecast_list.sort(key=lambda x : int(re.compile(r"\d+_").findall(list(x.data_vars.keys())[0])[0].strip("_"))) # Sort the dataset by forecast month. Sort by defauly is a inplace operation
+forecast_list_sorted = [dataset[list(dataset.data_vars.keys())[0]] for dataset in forecast_list] # Gather sorted datasets
+# 5.2.5 Plot the forecast performance scores
 simulation_maps("correlation_fc", forecast_list_sorted, GDF_shape, output_path,
                 cmap_corre, "Pearson correlation coefficient", plot_dim= "correlation",
                 subplot_row=3, subplot_col=2, fig_size=(6,12), extend="neither", add_scalebar=False, specify_bound=True,
                 fig_format=".png", bounds = np.linspace(0, 1, cmap_corre.N+1), forecast_month_var=forecast_month_var)
-
-
-
+#++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 # Plot using Xarray´s inner plotting functionalities
 # plots = xarray_dataarray.plot.pcolormesh(x = "lon", y= "lat",
 #     transform=map_proj,  # the data's projection
@@ -1133,430 +1283,8 @@ simulation_maps("correlation_fc", forecast_list_sorted, GDF_shape, output_path,
 #     ax.set_extent([minx-0.5, maxx+0.5, miny-0.5, maxy+0.5]) # The extent is derived from previous boundary setting crs=map_proj
 #     ax.add_geometries(GDF_shape.geometry, map_proj,
 #         facecolor='none', edgecolor='black')
-    
-ncfile = join(root_path, "ECMWF-SEAS5_datasets", "T_max_01.grib")
-nc_var_identifier = "Maximum_temperature"
-lon1, lat1, time_period = target_point.x, target_point.y, study_period
-data = extract_site_data_series(ncfile,nc_var_identifier,lon1,lat1,time_period,method="nearest", _format="GRIB")
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    
-# # 2. Load and process the phenology observational file
-# pheno_datasets=glob.glob(join(phenology_path,"*UTAD*.xlsx"))
-# # 2.1 Check if all location names are consistent among different phenology datasets
-# location_full = []
-# for pheno_file in pheno_datasets:
-#     load_file = pd.ExcelFile(pheno_file)
-#     location_full.append(load_file.sheet_names)
-# # Iterate over the appended lists to see if list names are identical
-# for location_list in combinations(location_full,2): # Return r length subsequences of elements from the input iterable
-#     if not location_list[0].__eq__(location_list[-1]):
-#         print("Location names are inconsistent in different dataset files")
-#         break
-#     else:
-#         pass
-# # 2.2 Process the phenology data into the desired format
-# target_varieties = ["Touriga Francesa","Touriga Nacional"]
-# full_BBCH = []
-# for BBCH_data in pheno_datasets: # Iterate over the searched glob list for the phenology datasets
-#     # Extract the phenology variable name
-#     BBCH_name = [name for name in ["budburst","flowering","veraison"] if name in BBCH_data][0]
-#     location_list = np.unique(location_full) # Obtain the unique list of location in the dataset
-#     target_df=pd.DataFrame()
-#     for location_name in location_list:
-#         location_df = pd.read_excel(BBCH_data,sheet_name = location_name)
-#         if not location_df.empty: # If not empty
-#             for row_data in location_df.itertuples(index=False,name=None):
-#                 for row_ele in row_data:
-#                     if any(variety in str(row_ele) for variety in target_varieties):
-#                         target_col_name = location_df.columns[row_data.index(row_ele)] # Get the target column name
-#                         target_data_ser = location_df.loc[location_df[target_col_name]==row_ele,:] # Load the time series of phenolgoy data given the target location name 
-#                         target_col = [ele for ele in target_data_ser.columns if re.search(r"\d+",str(ele))] # Look for data columns only
-#                         target_data_ser = target_data_ser.loc[:,target_col] # Select the data series
-#                         target_data_ser.dropna(axis=1, how='any',inplace=True) # Drop Na values
-#                         target_data_ser = target_data_ser.T # Transpose the df
-#                         # Create the target df given a local site and variety 
-#                         target_data_df = pd.DataFrame({"Sites":location_name,"Years":target_data_ser.index,
-#                                                        "Varieties":row_ele,BBCH_name+"(DOY)":np.array(target_data_ser).squeeze()})
-#                         # Append the data df to the target data df
-#                         target_df = pd.concat([target_df,target_data_df], axis=0, join='outer', ignore_index=True)
-#                         #target_df.append(target_data_df,ignore_index=True,verify_integrity=True)
-#                     else:
-#                         continue
-#     # Append the target_df to an existing empty list
-#     full_BBCH.append(target_df)
-# # 2.3. Write the final merged df into excel file
-# # 2.3.1 Obtain the final merged df
-# merged_df = consecutive_merge_df(full_BBCH,how="outer",on=["Sites","Years","Varieties"],copy=True)
-# merged_df.fillna(-999, axis=0, inplace=True)
-# # 2.3.2 Write the merged df into excel file
-# save_path_pheno = join(phenology_path,"summary")
-# mkdir(save_path_pheno)
-# #writer = pd.ExcelWriter(join(save_path,"summary_phenology.xlsx")
-                      
-# # 2.3.3 Save the df into .excel or .csv file in the disk
-# merged_df.to_csv(join(save_path_pheno,"summary_phenology.csv"), sep=",",header=True,
-#                         index=True,encoding ="utf-8") # Save to .excel 
-# # merged_df.to_excel(writer,sheet_name="summary_phenology",header=True,
-# #                               index=True,engine="openpyxl") # Save to .csv
-# # writer.save() # Save to disk
-# ###############################################################################
-# # 3. Extract weather data for each station
-# # 3.1 Create correct weather variable names for the file
-# weather_var_dict= {"Tn":"tasmin", "Tg":"tas",
-#           "Tx":"tasmax"
-#           }
-# # 3.2 Desired order of column for the output weather file
-# weather_col_order = ['day','month','Year', 'tasmax', 'tas', 'tasmin', 'Lat','Lon']
-# grid_weather_col_order = ['day','month','Year', 'tasmax', 'tas', 'tasmin', "pr", 'Lat','Lon']
-# # 3.3 Original weather station file
-# weather_station_data_path = glob.glob(join(weather_station_path,"*.xlsx"))[0]
-# # 3.4 Inquire the list of stations in the data file
-# weather_station_load = pd.ExcelFile(weather_station_data_path)
-# save_path_weather = join(weather_station_path,"summary_weather")
-# mkdir(save_path_weather)
-# # 3.5 Define the path to the Iberian datasets
-# iberian_data_path = r"H:\Iberian_datasets"
-# var_identifiers = ['tasmax', 'tas', 'tasmin',"pr"]
-# target_dataset = [] # Collect target datasets
-# for ncfile in glob.glob(join(iberian_data_path,"*.nc")):
-#     if any(varname in ncfile for varname in var_identifiers):
-#         target_dataset.append(ncfile)
-# mkdir(gridded_IP_path)
-# # 3.6 Iterate over each station
-# for station_name in weather_station_load.sheet_names:
-#     weather_station_data = pd.read_excel(weather_station_data_path,sheet_name=station_name)
-#     weather_station_data.rename(columns=weather_var_dict,inplace=True)
-#     # Create an intermediate string series in the format of YEAR-DOY
-#     datetime_str =  weather_station_data["Year"].astype(str)+ "-" +weather_station_data["DOY"].astype(str)
-#     #weather_station_data.apply(lambda x: datetime.strptime('{}-{}'.format(x["Year"].astype(str), x["DOY"].astype(str)),'%Y-%j')
-#     # Create two additional columns for day and months
-#     weather_station_data["day"] = datetime_str.apply(lambda x: datetime.strptime(x,'%Y-%j').day)
-#     weather_station_data["month"] = datetime_str.apply(lambda x: datetime.strptime(x,'%Y-%j').month)
-#     # Reorder the df
-#     weather_station_data = weather_station_data.reindex(columns=weather_col_order,copy=True)
-#     # Check for missing values
-#     if weather_station_data.isnull().values.any():
-#         weather_station_data.fillna(method="ffill",inplace=True)
-#     # Save the csv file into disk for the location
-#     weather_station_data.to_csv(join(save_path_weather,"{}_no_NAN.csv".format(station_name)), sep=",",header=True,
-#                             index=False,encoding ="utf-8")
-#     # Extract the coordinate that is going to be used to extract the weather data for Iberian peninsula
-#     # Look for the lon and lat pair
-#     lon= np.unique([round(ele,3) for ele in weather_station_data["Lon"].unique()])
-#     lat= np.unique([round(ele,3) for ele in weather_station_data["Lat"].unique()])
-#     if len(lon)>1 or len(lat)>1:
-#         print("The geographic coordinate lat and lon are not unique")
-#         break
-#     else:
-#         lon = float(lon)
-#         lat = float(lat)
-#     target_data_list =[]
-#     for grid_data in target_dataset:
-#         time_period = xr.open_dataset(grid_data,mask_and_scale=True).time.data # Extract the full time period
-#         var_shortname = [var for var in var_identifiers if var+".nc" in grid_data][0] # Extract the variable short name
-#         data_series = extract_site_data_series(grid_data,var_shortname,lon,lat,time_period) # Extract the time series of data for a given site
-#         target_data_list.append(data_series) # Append to an existing empty list
-#     # Concatenate all list datasets 
-#     merged_df = pd.concat(target_data_list,axis=1, join='inner', ignore_index=False)
-#     # Create a df with all desired columns
-#     merged_df = merged_df.assign(day=lambda x:x.index.day, month=lambda x:x.index.month, Year= lambda x:x.index.year,
-#                      Lon=lon, Lat=lat)
-#     # Reorder the columns
-#     merged_df_final = merged_df.reindex(columns = grid_weather_col_order, copy=True)
-#     # Check for missing values
-#     if merged_df_final.isnull().values.any():
-#         merged_df_final.fillna(method="ffill",inplace=True)
-#     # Export the target df into csv file
-#     merged_df_final.to_csv(join(gridded_IP_path,"{}_gridded_IPdata.csv".format(station_name)), sep=",",header=True,
-#                             index=False,encoding ="utf-8")
-# ###############################################################################
-
-# # Define the time range
-# start_year = 2017
-# end_year = 2018
-# # Obtain the list of files for 2020 and 2021
-# #E_OB_nc_2020=[ncfile for ncfile in glob.glob(join(E_OBS_path,"*.nc")) if ("rr" in ncfile) or ("tg" in ncfile)]
-# #E_OB_nc_2021=[ncfile for ncfile in glob.glob(join(dirname(Root_path),"E_OBS_2021","*.nc")) if ("rr" in ncfile) or ("tg" in ncfile)]
-# ## Define the study period
-# #year_2020=pd.date_range(str(start_year)+"-01-01",str(start_year)+"-12-31", freq="D")
-# #year_2021=pd.date_range(str(start_year)+"-01-01",str(end_year)+"-8-31", freq="D")
-# time_series=pd.date_range(str(start_year)+"-01-01",str(end_year)+"-12-31", freq="D")
-# #metadata_df=pd.DataFrame({"time":time_series,"Lat":lat1,"Lon":lon1,"Year":time_series.year,
-#                                      # "Month":time_series.month,"Day_in_month":time_series.day,
-#                                         #"DOY":time_series.day_of_year}).set_index("time")
-# # Extraction data for the mean temperature
-# var_dict= {"tn":"Minimum daily surface 2-m air temperature (°C)", "tg":"Mean daily surface 2-m air temperature (°C)",
-#           "tx":"Maximum daily surface 2-m air temperature (°C)", "rr":"Daily surface 2-m precipitation sum (mm)",
-#           "qq":"Mean daily global radiation (w/m2)", "fg":"Mean daily surface 2-m wind speed (m/s)", "hu":"Mean daily surface 2-m relative humidity (%)"
-#           }
-
-
-# data_ser_list=[]
-# data_ser_resample_list=[]
-# for var_name in var_dict.keys():
-#     var_fullname = var_dict[var_name]
-#     # Get the nc file in 2020 and 2021
-#     nc_file = [file for file in glob.glob(join(E_OBS_path,"*.nc")) if var_name in file][0]
-#     #nc_2020=[file for file in E_OB_nc_2020 if var in file][0]
-#     #nc_2021=[file for file in E_OB_nc_2021 if var in file][0]
-#     # Extract the data for the given site in 2020 and 2021
-#     site_data =extract_site_data_series(nc_file,var_name,lon1=lon1,lat1=lat1,time_period=time_series)
-#     site_data.rename(var_fullname,inplace=True)
-#     # Append panda series data into the list
-#     data_ser_list.append(site_data)# Resample the timeseries data
-#     if "rr" not in var_name: # For temperature variables 
-#         site_data_resample= site_data.resample("M").mean()
-#     else: # For precipitation variables
-#         site_data_resample= site_data.resample("M").sum()
-#     #data_2021=extract_site_data_series(nc_2021,var,lon1=lon1,lat1=lat1,time_period=year_2021)
-#     # Concatenate the series data from two years
-#     #data_concat=np.concatenate([data_2020,data_2021],axis=0)
-#     # Append the resampled timeseries data into the list
-#     data_ser_resample_list.append(site_data_resample)
-    
-# # Obtain the concatenated df between the two variables
-# data_output_df=pd.concat(data_ser_list,axis=1,join="inner")
-# data_output_df_resample=pd.concat(data_ser_resample_list,axis=1,join="inner")
-# # Concatenate the data columns with the label columns
-# target_df = pd.concat([metadata_df,data_output_df],axis=1,join='inner')
-# target_df_resample = pd.concat([metadata_df,data_output_df_resample],axis=1,join='inner')
-# target_df_resample.drop(columns=['Day_in_month', 'DOY'],inplace=True)
-# # Write the df to file
-# writer=pd.ExcelWriter(join(Root_path,"Luis_DATA_{}_{}.xlsx".format(str(start_year),str(end_year))))
-# target_df.to_excel(writer,sheet_name="daily_data",header=True,
-#                               index=True,engine="openpyxl")
-# target_df_resample.to_excel(writer,sheet_name="monthly_data",header=True,
-#                               index=True,engine="openpyxl")
-# writer.save()
-# # Read the processed ET0 data
-# # ws_data = [ file for file in glob.glob(join(Root_path,"*.xlsx")) if "2017_2018" in file][0]
-# # excel_data= pd.read_excel(ws_data,sheet_name="daily_data")
-# # excel_data.rename(columns={"Unnamed: 0":"timeindex"},inplace=True)
-# # excel_data.set_index("timeindex",inplace=True)
-# # et0_col_name = [name for name in excel_data.columns if "ET0" in name][0]
-# # et0_ser = excel_data[et0_col_name]
-# # et0_ser_monthly = et0_ser.resample("M").sum()
-# ###############################################################################
-# ###############################################################################
-
-# ###############################################################################
-# # 2. Pre-process the metadata excel file where the coordinates are transformed into decimal degrees
-# Root_path = r"H:\Grapevine_vineyard_model_R_LIST"
-# Meta_file=glob.glob(join(Root_path,"*Meta*"))[0]
-# Meta_file_excel=pd.ExcelFile(Meta_file)
-# Meta_df=pd.read_excel(Meta_file_excel,sheet_name=[ele for ele in Meta_file_excel.sheet_names if "yield" in ele][0])
-# #Location_list=[]
-# Lat_dict={}
-# Lon_dict={}
-# for row in Meta_df.itertuples(index=False):
-#     ## Obtain the string format of geographic lat and lon
-#     site_name=row[0] # The first column for the site name
-#     lat=row[1] # The second column for lat
-#     lon=row[2] # The third column for lon
-#     ## Convert the lat and lon into decimal degree
-#     # Obtain the string format of dms for lat
-#     dms_string_lat=parse_dms_from_string(lat) # Return a list of dms string
-#     dd_lat=dms2dd(dms_string_lat[0],dms_string_lat[1],dms_string_lat[2],"N") # Obtain the latitude of the grid point
-#     # Obtain the string format of dms for long
-#     dms_string_lon=parse_dms_from_string(lon) # Return a list of dms string
-#     dd_lon=dms2dd(dms_string_lon[0],dms_string_lon[1],dms_string_lon[2],"W") # Obtain the latitude of the grid point
-#     # Update processed data into dict
-#     Lat_dict[site_name]=round(dd_lat,3)
-#     Lon_dict[site_name]=round(dd_lon,3)
-# # Lon_ser = Meta_df["LON"]
-# # Lat_ser = Meta_df["LAT"]
-# # # Calculate the float value for lon
-# # Lon_ser_str = Lon_ser.apply(lambda x: parse_dms(x,preserve_dd=True))
-# # Lon_ser_str = Lon_ser_str.apply(lambda x: [ele_str for ele_str in x if ele_str!=""])
-# # Lon_ser_float = Lon_ser_str.apply(lambda x: dms2dd(x[0],x[1],x[2],"W"))
-# # # Calculate the float value for lat
-# # Lat_ser_str = Lat_ser.apply(lambda x: parse_dms(x,preserve_dd=True))
-# # Lat_ser_str = Lat_ser_str.apply(lambda x: [ele_str for ele_str in x if ele_str!=""])
-# # Lat_ser_float = Lat_ser_str.apply(lambda x: dms2dd(x[0],x[1],x[2],"N"))
-# # # Create a lon, lat dataframe to export
-# # lon_lat_df = pd.DataFrame({"lon":Lon_ser_float,"lat":Lat_ser_float})
-
-# # Create the new metadata df
-# Meta_df_new=pd.DataFrame({"sites":list(Lat_dict.keys()),"lon":list(Lon_dict.values()),
-#                           "lat":list(Lat_dict.values())})
-# # Export the processed df into a csv file
-# Meta_df_new.to_excel(join(Root_path,"Metadata_sites_final.xlsx"),sheet_name="Sites_metadata")
-# ##########################################################################################################################
-# ########################################################################################################################## 
-# ## 3. Extract the site-specific climate data
-# # Define the target study periods
-# Study_periods={"Baseline_OB_EOBS":np.arange(1991,2021,1),"Baseline_SM_ControlRun":np.arange(1991,2021,1),
-#                "Future_2041_2070":np.arange(2041,2071,1),"Future_2071_2100":np.arange(2071,2101,1)}
-# # Note the bias-adjsuted period for RCM is 1989–2010 using observational datasets from MESAN. See reference: Yang et al. 2019;
-# study_var=["tn","tx","rr"]
-# Key_order=["tg","tn","tx","rr"]
-# CF_name={key:value for key,value in zip(study_var,["tasmin","tasmax","pr"])} # 
-# output_path=join(Root_path,"save_path")
-# mkdir(output_path)
-# # Iterate over each site
-# for row_values in Meta_df_new.itertuples(index=False):
-#     site=row_values[0]
-#     lon1=row_values[1]
-#     lat1=row_values[2]
-#     Target_excel=join(output_path,str(site)+".xlsx")
-#     writer=pd.ExcelWriter(Target_excel,engine='openpyxl')
-#     ## Test Session ##
-#     # For each site, iterate over each extraction period, which will be the 
-#     for study_period_name, study_period in Study_periods.items():
-#         # Obtain the fixed column information based on the study period
-#         start_year=int(min(study_period))
-#         end_year=int(max(study_period))
-#         time_period=pd.date_range(str(start_year)+"-01-01",str(end_year)+"-12-31", freq="D")
-#         weather_fixed_columns={"Site_name":site,"Lat":lat1,"Lon":lon1,"Year":time_period.year,
-#                                   "Month":time_period.month,"Day_in_month":time_period.day,
-#                                   "DOY":time_period.day_of_year}
-#         # Make the fixed metadata columns that will be then merged with data columns
-#         weather_fixed_df=pd.DataFrame(weather_fixed_columns) # Initial the df with basic information
-#         if "OB" in study_period_name: # For baseline period with E-OBS observatoinal datasets
-#             nc_file_list=E_OB_nc.copy()
-#             extract_variables=["tg"]+study_var
-#             site_data_dict=OrderedDict()
-#             for ncfile in nc_file_list:
-#                 nc_var_identifier=[ nc_var for nc_var in extract_variables if nc_var in ncfile][0]
-#                 site_data=extract_site_data_series(ncfile,nc_var_identifier,lon1,lat1,time_period)
-#                 var_unit_eobs="(°C)" if nc_var_identifier in ["tg","tn","tx"] else "(mm)" 
-#                 site_data_dict[nc_var_identifier+" "+ var_unit_eobs]=site_data
-#             # Order the dictionary accoridng to a pre-defined order
-#             for key_fixed in Key_order:
-#                 key_dict=list(site_data_dict.keys())
-#                 order_key=[key_update for key_update in key_dict if key_fixed in key_update][0]
-#                 site_data_dict.move_to_end(order_key,last=True)            
-#             # Create the df from collected dict
-#             site_data_dict_df=pd.DataFrame(site_data_dict)
-#             target_df=pd.concat([weather_fixed_df,site_data_dict_df],axis=1,join='inner')
-#         else:
-#             nc_file_list=RCM_files.copy() # RCM files contain both RCP4.5 and RCP8.5 nc files
-#             extract_variables=study_var.copy()
-#             site_data_dict=OrderedDict()
-#             for extract_var in extract_variables:               
-#                 if not extract_var in site_data_dict.keys():
-#                     site_data_dict[extract_var]={}
-#                 for ncfiles in nc_file_list:
-#                     ncfile_path=[item for item in ncfiles if extract_var+".nc" in item][0]
-#                     nc_var_identifier= CF_name[extract_var]
-#                     site_data=extract_site_data_series(ncfile_path,nc_var_identifier,lon1,lat1,time_period)
-#                     rcm_name="".join(re.findall(r"[\\]\w+[-]\w+[(]",ncfile_path)).strip("\(") # Extract the RCM name given the file path
-#                     scenario_name="".join(re.findall(r"[\\]RCP\d+[\\]",ncfile_path)).strip("\\")
-#                     site_data_dict[extract_var][rcm_name+"-"+scenario_name]=np.array(site_data)
-#             # Create an additional variable for Tmean
-#             T_min_dict=site_data_dict["tn"]
-#             T_max_dict=site_data_dict["tx"]
-#             T_mean_key="tg"
-#             for (RCM_tmin_name,RCM_tmin), (RCM_tmax_name,RCM_tmax) in zip(T_min_dict.items(),T_max_dict.items()):
-#                 if T_mean_key not in site_data_dict.keys(): # Create a new nested dictioanry variable
-#                     site_data_dict[T_mean_key]={}
-#                 if RCM_tmin_name==RCM_tmax_name: # If both key name are the same, adopt the first one as the key
-#                     T_mean=(RCM_tmin+RCM_tmax)/2 # Compute the mean value
-#                     site_data_dict[T_mean_key][RCM_tmin_name]=T_mean
-#                 else:
-#                     raise ValueError("The key values from Tmin_dict and Tmax_dict are inconsistent")
-#                     break
-#             # Order the dictionary accoridng to a pre-defined order
-#             for key_fixed_rcm in Key_order:
-#                 key_dict_rcm=list(site_data_dict.keys())
-#                 order_key=[key_update for key_update in key_dict_rcm if key_fixed_rcm in key_update][0]
-#                 site_data_dict.move_to_end(order_key,last=True)  
-               
-#                 #data_columns_df=data_columns_df.reset_index()
-#                 # if iter_number==0: # In the first iteration over studied variables, create an empty df first while in the following iterations, the df is updated automatically
-#                 #     target_df=pd.DataFrame()
-#                 #     #target_df=target_df.merge(data_columns_df, how='inner',left_index=True,right_index=True)
-#                 #     target_df[]
-#                 # else:
-#                 #     target_df=target_df.merge(data_columns_df, how='inner',left_index=True,right_index=True)
-#             # A new dictionary to store df
-#             site_data_dict_new={}
-#             for var_target,dict_var in site_data_dict.items():
-#                 data_columns_df=pd.DataFrame(dict_var)
-#                 var_unit="(°C)" if var_target in ["tg","tn","tx"] else "(mm)" # Specify the variable unit
-#                 data_columns_df.columns = pd.MultiIndex.from_product([[var_target+" "+var_unit], data_columns_df.columns])
-#                 site_data_dict_new[var_target]=data_columns_df
-#             # Construct the target df by concatenating all df
-#             concat_site_data_df=pd.concat(list(site_data_dict_new.values()),axis=1,join='inner',ignore_index=False)
-#             # Make the weather fixed columns with multi-level index
-#             weather_fixed_df.columns=pd.MultiIndex.from_product([["Station_metadata"], weather_fixed_df.columns])
-#             # Concate the data df with metadata df
-#             target_df=pd.concat([weather_fixed_df,concat_site_data_df],axis=1,join='inner')
-#         # Save all dfs to respective worksheet within an existing excel file
-#         target_df.to_excel(writer,sheet_name=study_period_name,header=True,
-#                               index=True,engine="openpyxl",merge_cells=True)
-#     # Save to excel file only after export data to all relevant worksheets
-#     writer.save()
-#     # Imediately after saving, modify the excel file to format necessary columns
-#     wb=load_workbook(Target_excel)
-#     for sheet_name in wb.sheetnames:
-#         ws=wb[sheet_name] # Iterate over each worksheet
-#         # Modify the excel worksheet format and display properties
-#         if "OB" in sheet_name:
-#             auto_fit_column_width(ws,0) # Auto-fit the column width based the first row´s cell width
-#             continue
-#         else:
-#             auto_fit_column_width(ws,1) # Auto-fit the column width based on the second row´s cell width
-#             set_cell_style(ws,identification_character1="RCP45",identification_character2="RCP85") # Set the cell colors for climate data extracted from RCMs under RCP45 and RCP85
-#     wb.save(Target_excel) # save the formatted excel file
-# ##########################################################################################################################
-# ########################################################################################################################## 
-# ## 4. A quick check if extracted data at 2 different times are equal
-# from os import listdir
-# from os.path import join,isdir,isfile
-# import pandas as pd
-
-
-# Extract1=join(output_path,"extract1")
-# Extract2=output_path
-# # List all excel files within each extraction folder
-# Extract1_excels=[ excel_file for excel_file in listdir(Extract1) if isfile(join(Extract1,excel_file))] 
-# Extract2_excels=[ excel_file for excel_file in listdir(Extract2) if isfile(join(Extract2,excel_file))] 
-# # Dump excel files with the same file name from two different folders into a variable
-# Excel_file_names=[ excel1 for excel1, excel2 in zip(Extract1_excels,Extract2_excels) if excel1==excel2]
-# # Loop through these excel files to check if the data in 2 excel files are identical
-# for file_name in Excel_file_names:
-#     # Define the path to the files
-#     extract1_excel=join(Extract1,file_name)
-#     extract2_excel=join(Extract2,file_name)
-#     # Load the excel files into memory in order to inquire the sheet name information
-#     extrac1_excel_load=pd.ExcelFile(extract1_excel)
-#     extrac2_excel_load=pd.ExcelFile(extract2_excel)
-#     # Read available excel sheet names and check if the sheet_names are identical
-#     sheet_names=[sheet1 for sheet1, sheet2 in zip(extrac1_excel_load.sheet_names,extrac2_excel_load.sheet_names) if sheet1==sheet2]
-#     for sheet_name in sheet_names:
-#         # Read each excel sheet in to dataframe
-#         extract1_df=pd.read_excel(extract1_excel,sheet_name=sheet_name)
-#         extract2_df=pd.read_excel(extract2_excel,sheet_name=sheet_name)
-#         # Test if two dataframes resulting from two excel worksheets are identical
-#         if extract1_df.equals(extract2_df):
-#             print("The data for site {0} over {1} are identical".format(file_name,sheet_name))
-#         else:
-#             raise ValueError("The data for site {0} over {1} are inconsistent, errors occur for one of the file".format(file_name,sheet_name))
-#             break
-
-    
-    
+# ncfile = join(root_path, "ECMWF-SEAS5_datasets", "T_max_01.grib")
+# nc_var_identifier = "Maximum_temperature"
+# lon1, lat1, time_period = target_point.x, target_point.y, study_period
+# data = extract_site_data_series(ncfile,nc_var_identifier,lon1,lat1,time_period,method="nearest", _format="GRIB")
     
