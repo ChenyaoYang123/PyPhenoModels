@@ -18,7 +18,9 @@ import geopandas as gpd
 import cartopy.crs as ccrs
 import matplotlib as mpl
 from matplotlib import gridspec
+import matplotlib.ticker as mticker
 from matplotlib_scalebar.scalebar import ScaleBar
+from cartopy.mpl.gridliner import LONGITUDE_FORMATTER, LATITUDE_FORMATTER
 from itertools import product
 from os.path import join,dirname
 import matplotlib.pyplot as plt
@@ -535,6 +537,17 @@ def check_NaN(ser, fill_method1="quadratic",fill_method2="bfill",fill_method3="f
         #print("No NaN values are deteced, thereby no filling NaN is performed")
         return ser
 ###############################################################################################################################################################################################################
+def great_circle(lon1, lat1, lon2, lat2):
+    """
+    Calculate the great-circle distance between two points using their geographic coordinates 
+    """
+    from math import radians, sin, cos, acos
+    # Modify the supplied input longitude and latitude
+    lon1, lat1, lon2, lat2 = map(radians, [lon1, lat1, lon2, lat2])    
+    distance = 6371 * (acos(sin(lat1) * sin(lat2) + cos(lat1) * cos(lat2) * cos(lon1 - lon2)))
+    # Perform the The Great-Circle Distance calculation
+    return distance
+###############################################################################################################################################################################################################
 def simulation_maps(file_name, data_arrays, shape_path, savepath, 
                     colormap, cbar_label, plot_dim= "space", origin=ccrs.CRS("EPSG:4326"), proj=ccrs.PlateCarree(), # ccrs.Geodetic()
                     subplot_row=10, subplot_col=3, fig_size=(6,21), specify_bound= False, extend="both", add_scalebar=False,
@@ -574,7 +587,7 @@ def simulation_maps(file_name, data_arrays, shape_path, savepath,
     # Assert that the input data array is a xarray object
     assert isinstance(data_arrays, (xr.core.dataarray.DataArray, xr.core.dataset.Dataset, list)), "the input array is not of the required data types"
     # Create a grid system to apply for subplots
-    grid = gridspec.GridSpec(nrows = subplot_row, ncols = subplot_col, hspace = 0.05, wspace = 0.05)
+    grid = gridspec.GridSpec(nrows = subplot_row, ncols = subplot_col, hspace = 0.1, wspace = 0.1)
     fig = plt.figure(figsize=fig_size) # Create a figure instance class
     axis_list=[] # append to this empty list a number of grid specifications
     if (subplot_row>1) and (subplot_col>1):
@@ -621,7 +634,7 @@ def simulation_maps(file_name, data_arrays, shape_path, savepath,
         # Make some decorations on the time-series plot
         plot_axe.set_xticklabels(data_arrays.time.data, rotation="vertical") # Re-adjust the x-tick labels
         # Set the title of the plot 
-        plot_axe.set_title(kwargs["plot_title"], fontdict={"fontsize":7,"fontweight":'bold'},
+        plot_axe.set_title(kwargs["plot_title"], fontdict={"fontsize":6,"fontweight":'bold'},
                                    loc="center",x=0.5,y=0.95,pad=0.05)
         # Set the y-axis label
         plot_axe.set_ylabel(kwargs["y_axis_label"], fontdict={"fontsize":7,"fontweight":'bold'}, labelpad = 0.05, loc = "center")
@@ -674,15 +687,41 @@ def simulation_maps(file_name, data_arrays, shape_path, savepath,
             assert "forecast_month_var" in kwargs.keys(), "missing 'forecast_month_var' in the funcation call"
             subplot_name = kwargs["forecast_month_var"][data_array.name]
         # Set the subplot title
-        subplot_axe.set_title(subplot_name, fontdict={"fontsize":9,"fontweight":'bold'},
+        subplot_axe.set_title(subplot_name, fontdict={"fontsize":7,"fontweight":'bold'},
                                    loc="right", x=0.95, y=0.95, pad=0.05)
+        # Add the grid line locators 
+        if (len(kwargs["grid_lon"]) != 0) or (len(kwargs["grid_lat"]) != 0):
+            # Add the gridlines and tick labels to the subplot map.
+            gl = subplot_axe.gridlines(crs=proj, draw_labels=True,
+                              linewidth=2, color='gray', alpha=0.5, linestyle='--')
+            # Add the grid line lables
+            gl.top_labels = True
+            gl.bottom_labels  = False
+            gl.left_labels = True
+            gl.right_labels  = False
+            # DO not show the grid lines
+            gl.xlines  = False
+            gl.ylines  = False
+            assert isinstance(kwargs["grid_lon"] ,list) and isinstance(kwargs["grid_lat"] ,list), "input longitude and latitude gridlines are not in the form of list"
+            # Add the x- and y-locators in the subplot map
+            gl.xlocator = mticker.FixedLocator(kwargs["grid_lon"]) # Pass the desired longitude vector to be plotted on the map
+            gl.ylocator = mticker.FixedLocator(kwargs["grid_lat"]) # Pass the desired latitude vector to be plotted on the map
+            gl.xformatter = LONGITUDE_FORMATTER # Format the locators
+            gl.yformatter = LATITUDE_FORMATTER # Formate the locators
+            # Add the label styles
+            gl.xlabel_style = {'size': 6, 'color': 'gray', "weight": "bold"}
+            gl.ylabel_style = {'size': 6, 'color': 'gray', "weight": "bold"}
+            
+        #gl.xlabel_style = {'color': 'red', 'weight': 'bold'}
         # Set the scale bar # Scalebar_package from mathplotlib https://pypi.org/project/matplotlib-scalebar/
         if add_scalebar is True:
             #scale_bar = AnchoredSizeBar(subplot_axe.transData, 10000, '10 km', 'upper right',frameon=False,size_vertical = 100) # ccrs.PlateCarree() unit is meter
             dx = great_circle(np.max(lonvec), np.min(latvec), np.max(lonvec)+1, np.min(latvec)) # compute the distance between two points at the latitude (Y) you wish to have the scale represented
-            scale_bar = ScaleBar(dx, units="km", dimension= "si-length", length_fraction=0.25, location="upper right",sep=5,
+            scale_bar = ScaleBar(dx, units="km", dimension= "si-length", length_fraction=0.2, location="lower right",sep=5,
                                  pad=0.2,label_loc="bottom", width_fraction= 0.01)
             subplot_axe.add_artist(scale_bar)
+
+        
         #scale_bar = ScaleBar(13.875, units="km", dimension= "si-length", length_fraction=0.25,location="upper right",
         #                     pad=0.2,label_loc="bottom", width_fraction= 0.05
                              
@@ -704,7 +743,7 @@ def simulation_maps(file_name, data_arrays, shape_path, savepath,
     # Set the colorbar label
     cb.ax.set_ylabel(cbar_label, rotation=270,fontdict={"size":cbar_label_size})
     # Set the padding between colorbar label and colorbar    
-    cb.ax.get_yaxis().labelpad = 30 
+    cb.ax.get_yaxis().labelpad = 30
     # Save the plot to a local disk
     mkdir(savepath)
     fig.savefig(join(savepath,file_name+fig_format), bbox_inches="tight",pad_inches=0.05, dpi=600)
@@ -852,9 +891,9 @@ def extract_nearest_neighbours(data_arr, data_ser, lon1, lat1, ens_dim=False, **
             print("The boundary coordinate pairs are encountered and can not continue searching points to fill NaN")
             if len(kwargs)!=0:
                 kwargs["Bug_dict"].update({"lon"+str(lon1)+"_lat"+str(lat1):'the boundary coordinate pairs are encountered and can not continue searching points to fill NaN!'}) 
-            return data_ser_test
-        # Here the lon_index and lat_index need to be checked if they are unchanged for a certain number of loops
-    return data_ser_test # When the while loop is break, the data_ser_test is already free of any NaN values.
+            return data_ser_test.to_series()
+        # Here the lon_index and lat_index need to be checked if they are unchanged for a certain number of loops. Panda series is returned
+    return data_ser_test.to_series() # When the while loop is break, meaning Non-NaN value series is found and returned in the form of Panda series
 ###############################################################################################################################################################################################################
 # # Get the respective DOY of the dormancy break
 # dormancy_break_DOY = dormancy_break_date.dayofyear
@@ -893,7 +932,7 @@ GDF_shape= gpd.read_file(study_shape).to_crs(proj) # Load the shape file into a 
 #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 # 2. Collect a list of points that comprise the study region
 determine_lat_lon_vector = "by_shape" # Collect data points from shape file or from forecast dataset itself
-fc_times = [2, 3, 4]  # Specify the forecast time either by month or by day. But this should be case-specific
+fc_times = [2, 3, 4, 5]  # Specify the forecast time either by month or by day. But this should be case-specific
 forecast_time_data = sort_FCdatasets_by_FCdate(forecast_path, fc_times) # Obtain the target forecast dict
 metero_var_dict_forecast= {"Tmin":"mn2t24", "Tmax":"mx2t24", "Prec":"tp"} # Define the mteorological variable dictionary
 
@@ -980,7 +1019,7 @@ date_range_output= pd.date_range("{}-12-31".format(begin_year), "{}-12-31".forma
 metero_var = ["tn","tg","tx"] # Define the meteorological variable that is going to be the input for the phenology model
 metero_var_dict_OB = {"Tmin":"tn", "Tmean":"tg", "Tmax":"tx"} # Define the respective meteorological dict
 target_column_order = ['day','month','Year', *metero_var, 'lat','lon'] # Pre-specified an order of columns for meteorological data
-forecast_time = [2, 3, 4]  # Define the forecast month; This should be case-specific
+forecast_time = [2, 3, 4, 5]  # Define the forecast month; This should be case-specific
 ensemble_members = 25 # Define the number of ensemble used in the seasonal forecast
 resolution = 0.1 # Define the gridding resolution
 decimal_place = abs(decimal.Decimal(str(resolution)).as_tuple().exponent) # Extract number of decimal places in the input float from the defined resolution
@@ -1192,18 +1231,18 @@ for index, target_point in enumerate(target_points):
     print("Finish processing for point No.{} out of total {}".format(str(index+1),str(len(target_points))))  
     timer.end()
 # Write the output into the target 3-D dataset
-output_path = join(output_path,"simulation_score")
+output_path_score = join(output_path,"simulation_score")
 output_path_sm = join(output_path,"simulation_fc")
 output_path_ob = join(output_path,"simulation_ob")
 # Make directories to save files
-mkdir(output_path)
+mkdir(output_path_score)
 mkdir(output_path_sm)
 mkdir(output_path_ob)
 # Save the score arrays into .nc files at local disk
 for key ,value in forecast_score_dict.items():
     output_da = value.to_dataset(name = key)
     # Save to disk as .nc file
-    output_da.to_netcdf(join(output_path,"{}.nc".format(key)), mode='w', format="NETCDF4", engine="netcdf4")
+    output_da.to_netcdf(join(output_path_score,"{}.nc".format(key)), mode='w', format="NETCDF4", engine="netcdf4")
 # Save the simulation arrays with forecast datasets into .nc files at local disk
 for key ,value in forecast_ob_dict.items():
     output_da = value.to_dataset(name = key)
@@ -1213,7 +1252,7 @@ for key ,value in forecast_ob_dict.items():
 for key ,value in forecast_sm_dict.items():
     output_da = value.to_dataset(name = key)
     # Save to disk as .nc file
-    output_da.to_netcdf(join(output_path_sm,"{}.nc".format(key)), mode='w', format="NETCDF4", engine="netcdf4")
+    output_da.to_netcdf(join(output_path_ob,"{}.nc".format(key)), mode='w', format="NETCDF4", engine="netcdf4")
 #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 # 5. Visualize the results
 # 5.1 Visualize the results for the simulated year-to-year flowering and veraison stages using observed weather 
@@ -1246,27 +1285,40 @@ for plot_var in outputvars_list:
                     fig_format=".png", bounds = cmap_bounds[plot_var])
 # 5.2 Visualize the results for the performance score, i.e. correlation coefficient
 # 5.2.1 Define the path to target .nc files that store the data to plot
-forecast_flo_corre = glob.glob(join(output_path,"*flo.nc"))
-forecast_ver_corre = glob.glob(join(output_path,"*ver.nc"))
+forecast_flo_corre = glob.glob(join(output_path_score,"*flo.nc"))
+forecast_ver_corre = glob.glob(join(output_path_score,"*ver.nc"))
 # 5.2.2 Define the cmap to use in correlation coefficient plot
 cmap_corre = discrete_cmap(10, base_cmap="summer_r")
 # 5.2.3 Define the forecast month variable dictionary
 forecast_month_var = {"2_flo": "February_fc_flowering",
-                 "3_flo": "March_fc_flowering",
-                 "4_flo": "April_fc_flowering",
-                 "2_ver": "February_fc_veraison",
-                 "3_ver": "March_fc_veraison",
-                 "4_ver": "April_fc_veraison"
-                 }
+                      "3_flo": "March_fc_flowering",
+                      "4_flo": "April_fc_flowering",
+                      "5_flo": "May_fc_flowering",
+                      "2_ver": "February_fc_veraison",
+                      "3_ver": "March_fc_veraison",
+                      "4_ver": "April_fc_veraison",
+                      "5_ver": "May_fc_veraison"
+                     }
 # 5.2.4 Collect and sort the plot datasets
 forecast_list = [xr.open_dataset(data_path, mask_and_scale=True, engine = "netcdf4") for data_path in forecast_flo_corre+forecast_ver_corre] # Collect all output datasets into a single list
 forecast_list.sort(key=lambda x : int(re.compile(r"\d+_").findall(list(x.data_vars.keys())[0])[0].strip("_"))) # Sort the dataset by forecast month. Sort by defauly is a inplace operation
 forecast_list_sorted = [dataset[list(dataset.data_vars.keys())[0]] for dataset in forecast_list] # Gather sorted datasets
 # 5.2.5 Plot the forecast performance scores
+# Get the coordinate names
+if all( get_latlon_names(da_array1) == get_latlon_names(da_array2) for da_array1, da_array2 in 
+       zip(forecast_list_sorted[0:], forecast_list_sorted[1:])): # A common way to check array elements equality
+    lon_name, lat_name = get_latlon_names(forecast_list_sorted[0]) 
+# Get the coordinate vectors
+lon_vec = forecast_list_sorted[0].coords[lon_name]
+lat_vec = forecast_list_sorted[0].coords[lat_name]
+# Get the target grid lon and lat for the plot # Estimate from lon_vec and lat_vec
+grid_lons = np.arange(min(lon_vec)-0.5, max(lon_vec)+0.5, 1)
+grid_lats = np.arange(min(lat_vec)-0.5, max(lat_vec)+0.5, 1)
+# Make the map plot
 simulation_maps("correlation_fc", forecast_list_sorted, GDF_shape, output_path,
                 cmap_corre, "Pearson correlation coefficient", plot_dim= "correlation",
-                subplot_row=3, subplot_col=2, fig_size=(6,12), extend="neither", add_scalebar=False, specify_bound=True,
-                fig_format=".png", bounds = np.linspace(0, 1, cmap_corre.N+1), forecast_month_var=forecast_month_var)
+                subplot_row=4, subplot_col=2, fig_size=(6,14), extend="neither", add_scalebar=True, specify_bound=True,
+                fig_format=".png", bounds = np.linspace(0, 1, cmap_corre.N+1), forecast_month_var=forecast_month_var, grid_lon= list(grid_lons), grid_lat=list(grid_lats))
 #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 # Plot using Xarray´s inner plotting functionalities
 # plots = xarray_dataarray.plot.pcolormesh(x = "lon", y= "lat",
