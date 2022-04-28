@@ -34,6 +34,7 @@ class BRIN_model:
     
     Endo-dormancy parameters
     ----------
+    Q10: float, base of the exponentional function in Bidabe model.
     CCU: float, a cumulative chilling unit to break the dormancy with calculations starting from the starting_DOY.
     starting_DOY: int, the pre-specified day of year to start computation of Bidade model.
     
@@ -45,7 +46,7 @@ class BRIN_model:
     Richarson_model: str, choice of Richarson function, either with Richardson daily function ("daily") or hourly function ("hourly").
     '''
     # Define the BRIN model class instance attributes
-    def __init__(self, Tmin_input, Tmax_input, CCU, starting_DOY,
+    def __init__(self, Tmin_input, Tmax_input, Q10, CCU, starting_DOY,
                         CGDH, TMBc, TOBc, Richarson_model):
         ## Attributes list:
         # tmin: series, the daily Tmin pd.Series out of Tmin_input.
@@ -53,6 +54,7 @@ class BRIN_model:
         # temp_df : df, the input df with two columns of daily minimum and maximum temperatures with 2 years since the dormancy calculation starts in the preceding year.
         # study_years: list of study years derived from the input.
         # two_year_combo: list of list integers, sublist elements are the combination of consecutively two years obtained from the study years.   
+        # Access and assign the Tmin and Tmax series into the instance attribute
         self.tmin = Tmin_input
         self.tmax = Tmax_input
         # Check if two input series are having the same number of years
@@ -68,8 +70,8 @@ class BRIN_model:
         #     self.study_years = [[year,year+1] for year in self.study_years if year != self.study_years[-1]] 
         #self.two_year_combo = [[year,year+1] for year in self.study_years if year != self.study_years[-1]] # list of list years that represent consecutively two study years
         # Define the parent class attributes that can access the child class attributes (for dormancy and post-dormancy module)
-        self.endo_dormancy = self.dormancy_module(CCU, starting_DOY, self.temp_df, self.two_year_combo)
-        self.eco_dormancy = self.postdormancy_module(CGDH, TMBc, TOBc, Richarson_model, self.temp_df, self.two_year_combo)
+        self.endo_dormancy = self.dormancy_module(Q10, CCU, starting_DOY, self.temp_df, self.two_year_combo, Tmin_input.name, Tmax_input.name)
+        self.eco_dormancy = self.postdormancy_module(CGDH, TMBc, TOBc, Richarson_model, self.temp_df, self.two_year_combo, Tmin_input.name, Tmax_input.name)
         
     ### Define the inner class that corresponds to a dormancy module that simulate the endo-dormancy period 
     ### using Q10 function (with daily minimum and maximum temperatures)
@@ -82,26 +84,31 @@ class BRIN_model:
         dormancy_output: series, a series of predicted dates for dormancy DOY
         '''   
         # Initialize the class with two compulsory parameters
-        def __init__(self, CCU, starting_DOY, temp_df, two_year_combo):
+        def __init__(self, Q10, CCU, starting_DOY, temp_df, two_year_combo, tasmin_name, tasmax_name):
+            self.Q10 = Q10 
             self.CCU = CCU
             self.starting_DOY = starting_DOY
             self.temp_df = temp_df
             self.two_year_combo = two_year_combo
+            self.tasmin_name = tasmin_name
+            self.tasmax_name = tasmax_name
         def predict(self):
             # Define the class instance method for prediction
             starting_DOY = self.starting_DOY
             CCU = self.CCU
+            Q10 = self.Q10
+            tasmin_name = self.tasmin_name
+            tasmax_name = self.tasmax_name
             # Define an inner function within the predict() method, i.e. this inner function is only callable within predict() class instance method
-            def Q10_func(x, Q10 = 1.55, tasmin="tasmin", tasmax="tasmax"): 
+            def Q10_func(x, Q10 = Q10, tasmin=tasmin_name, tasmax=tasmax_name): 
                 '''
                 The Bidade function in STICS is based on the Q10 concept, which aims to compute the cumulative chilling units from dormancy onset to dormancy break
                 
                 Parameter
                 ----------
                 x : df rows or columns, this will apply to a df.apply() function, so that x is each row or each column of df. The df is with two columns of daily minimum and maximum temperatures.
-                Q10: float, base of the exponentional function in Bidabe model. Defaults to 2.17 for grapevine using a large sample dataset for calibration
-                tasmin: str, the column head used to extract the column infor
-                tasmax: str, the column head used to extract the column infor
+                tasmin: str, the series name used to extract the column infor
+                tasmax: str, the series name used to extract the column infor
                 '''
                 f = math.pow(Q10, -(float(x[tasmin])/10)) + math.pow(Q10, -(float(x[tasmax])/10))
                 return f
@@ -141,13 +148,15 @@ class BRIN_model:
         Budburst_output: series, a series of predicted budburst DOY.
         '''
         # Initialize the class with compulsory parameters
-        def __init__(self, CGDH, TMBc, TOBc, Richarson_model, temp_df, two_year_combo):
+        def __init__(self, CGDH, TMBc, TOBc, Richarson_model, temp_df, two_year_combo, tasmin_name, tasmax_name):
             self.CGDH = CGDH
             self.TMBc = TMBc
             self.TOBc = TOBc
             self.Richarson_model = Richarson_model
             self.temp_df = temp_df
             self.two_year_combo = two_year_combo
+            self.tasmin_name = tasmin_name
+            self.tasmax_name = tasmax_name
         # Define the class instance method for prediction
         def predict(self, _dormancy_output):
             CGDH = self.CGDH 
@@ -155,8 +164,10 @@ class BRIN_model:
             TOBc = self.TOBc
             Richarson_model = self.Richarson_model
             dormancy_output = _dormancy_output.copy(deep=True)
+            tasmin_name = self.tasmin_name
+            tasmax_name = self.tasmax_name
             # Define an inner function of predict() that correspond to the Richardson hourly function
-            def Richarson_GDH_func(x, TMBc = TMBc, TOBc = TOBc, tasmin="tasmin", tasmax="tasmax", **kwargs): 
+            def Richarson_GDH_func(x, TMBc = TMBc, TOBc = TOBc, tasmin = tasmin_name, tasmax = tasmax_name, **kwargs): 
                 '''
                 The Richarson_GDH function in STICS is based on the hourly thermal time function, which aims to compute the cumulative thermal units from the dormancy break to budburst onset.
                 This corresponds to the Richarson hourly function.
@@ -164,8 +175,8 @@ class BRIN_model:
                 Parameter
                 ----------
                 x : df rows or columns, this will apply to a df.apply() function, so that x is each row or each column of df. The df is with two columns of daily minimum and maximum temperatures.
-                tasmin: str, the column head used to extract the column data.
-                tasmax: str, the column head used to extract the column data.
+                tasmin: str, the series name used to extract the column data.
+                tasmax: str, the series name used to extract the column data.
                 kwargs: additionaly keyword arguments passed to the method. By default, the df itself should be passed. 
                 '''
                 if len(kwargs)  != 0: # Check if the key word arguments are empty or not
@@ -256,7 +267,7 @@ class bug_holder:
     def __init__(self,data):
         self.bug_list.append(data)
 ############################################################################################################################################################################
-def run_BRIN_model(tasmin, tasmax, CCU_dormancy = None, T0_dormancy = 213, CGDH_budburst = None, 
+def run_BRIN_model(tasmin, tasmax, Q10=None, CCU_dormancy = None, T0_dormancy = None, CGDH_budburst = None, 
                    TMBc_budburst= None, TOBc_budburst = None, Richarson_model= None, bug_catch= False, **kwargs):
     '''
     Run the BRIN model class to get the outputs for both the dormancy break and budburst.
@@ -267,6 +278,7 @@ def run_BRIN_model(tasmin, tasmax, CCU_dormancy = None, T0_dormancy = 213, CGDH_
     tasmin : a panda series, a time series of daily minimum temperature over study years with index being the datetimne on a daily scale. A minimum of 2 year is required. 
     tasmax : a panda series, a time series of daily maximum temperature over study years with index being the datetimne on a daily scale. A minimum of 2 year is required. 
     bug_catch: bool, if bug will be caught and write to an output variable. Note if this is True, addtional kwargs must be supplied
+    Q10: float, the base of the exponentional function in the Bidabe model.
     CCU_dormancy: float, a BRIN model parameter that represents the cumulative chilling unit to break the dormancy with calculations starting from the starting_DOY.
     T0_dormancy: float, starting DOY to compute the endo-dormancy period. 
     CGDH_budburst: float, a BRIN model parameter that represents the cumulative growing degree hours to reach the budbust onset from the dormancy break DOY.
@@ -276,7 +288,7 @@ def run_BRIN_model(tasmin, tasmax, CCU_dormancy = None, T0_dormancy = 213, CGDH_
     kwargs : any additional keyword arguments, normally expect the input argument of the grid point coordinate
     '''
     # Initialize the Brin model parent class
-    BRIN_model_class = BRIN_model(tasmin, tasmax, CCU_dormancy, T0_dormancy,
+    BRIN_model_class = BRIN_model(tasmin, tasmax, Q10, CCU_dormancy, T0_dormancy,
                         CGDH_budburst, TMBc_budburst, TOBc_budburst, Richarson_model) # Initialize the BRIN model instance class, this will only process the input data
     # Initialize the endo-dormancy and eco-dormancy models (Inner classes)
     endo_dormancy_model = BRIN_model_class.endo_dormancy
@@ -524,7 +536,7 @@ def phenology_model_run(T_input, thermal_threshold = 290, module = "STICS_GDD", 
             if not cdd_daily[cdd_daily >= thermal_threshold].empty:
                 date_index = cdd_daily[~(cdd_daily >= thermal_threshold)].argmax(skipna=True) + 1 # Return the last date where the condition of CCU is still not met. While the next day, the CCU must be achieved.
                 target_date = cdd_daily.index[date_index]
-                target_year = target_date.year
+                target_year = round(target_date.year)
             else:
                 target_date = np.nan # In case the required thermal demand is not reached, assign the NaN value 
                 target_year = np.nan # the target year is NaN in case the simulated stage is NaN
@@ -557,7 +569,7 @@ def phenology_model_run(T_input, thermal_threshold = 290, module = "STICS_GDD", 
             if not cdd_daily[cdd_daily >= thermal_threshold].empty:
                 date_index = cdd_daily[~(cdd_daily >= thermal_threshold)].argmax(skipna=True) + 1 # Return the last date where the condition of CCU is still not met. While the next day, the CCU must be achieved.
                 target_date = cdd_daily.index[date_index]
-                target_year = target_date.year
+                target_year = round(target_date.year)
             else:
                 target_date = np.nan # In case the required thermal demand is not reached, assign the NaN value 
                 target_year = np.nan # the target year is NaN in case the simulated stage is NaN
