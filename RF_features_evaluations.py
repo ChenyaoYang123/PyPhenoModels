@@ -1316,7 +1316,7 @@ def write_df_to_csv(output_file_path, df):
 # 1.1 Check for target drive letter, which basically check the device working with.
 if getpass.getuser() == 'Clim4Vitis':
     script_drive = "H:\\"
-elif getpass.getuser() == 'admin':
+elif getpass.getuser() == 'Admin':
     script_drive = "G:\\"
 elif (getpass.getuser() == 'CHENYAO YANG') or (getpass.getuser() == 'cheny'):
     script_drive = "D:\\"
@@ -1539,14 +1539,39 @@ for thresh_tuple_index, thresh_tuple in enumerate(thresh_combo):
                                 hot_day_threshold = hot_days_thresh, cold_day_threshold = cold_days_thresh, GDD_threshold = GDD_thresh )
         # Convert the categorical variables into the dummy/indicative variables
         #ML_df_08_dummy = pd.get_dummies(ML_df_08, columns=ML_df_08.columns, prefix_sep="_percentile")
+        ## Fitting the RF model and compute the score based on the testing datasets
         # Define the feature inputs to be used to train the model
         features_input = ML_df.drop(columns = [ML_df.columns[-1]])
         # Target variable to predict
         target_feature = ML_df[ML_df.columns[-1]]
         # Split the data into training and testing sets
-        X_train, X_test, Y_train, Y_test = train_test_split(features_input, target_feature, test_size = 0.2) # The random state is set to 42, which means the results will be the same each time I run the split for reproducible results.
-        # Instantiate Random forest model
-        rf = RandomForestClassifier(n_estimators=200).fit(X_train,Y_train) # Always test with 200 decision trees
+        X_train, X_test, Y_train, Y_test = train_test_split(features_input, target_feature, test_size = 0.2, random_state = 42) # The random state is set to 42, which means the results will be the same each time I run the split for reproducible results.
+        # Instantiate the random forest (RF) model with reproducible model fitting
+        rf = RandomForestClassifier(n_estimators=300, random_state = 42).fit(X_train,Y_train) # Always test with 200 decision trees
+        predictions = rf.predict(X_test) # Make the predictions using fitted RF model and testing dataset
+        CM  = confusion_matrix(Y_test, predictions) # Get the confusion matrix from the prediction results
+        CM_correct = np.nansum(np.diagonal(CM).copy()) # Get the correct number of classifications from RF on the testing dataset
+        model_score = CM_correct/len(Y_test) # Get the testing score desired 
+        #model_score = rf.score(X_test, Y_test) # Compute the average accuracy based on the testing dataset
+        # Save the computation score to the output data array  
+        ML_output_scores.loc[point] = model_score
+        ## Feature selection for the RF model
+        # Construct the feature selectors for Random Forest
+        sel = SelectFromModel(RandomForestClassifier(n_estimators = 300,random_state = 42)).fit(X_train, Y_train) # Get reproducible results when setting the random state to 42
+        # Get the retained feature identifiers
+        #selected_feat= X_train.columns[(sel.get_support())] # get the feature names
+        sel_feat_identifiers = np.arange(0, len(X_train.columns),1)[sel.get_support()] # The feature identifers are 0-based numbers. sel.get_support() return an array of bool to select feature with True value
+        retained_features_list = [] # Create an empty list to store target feature identifiers        
+        if len(sel_feat_identifiers) != 0: # If empty, the retained_features_list will keep empty
+            for sel_id in list(sel_feat_identifiers):
+                retained_features_list.append(sel_id) # Append selected feature identifier to the target list
+        # Save the selected feature results to the output data array
+        point["features"]= list(range(len(features_input.columns)))
+        target_features = np.empty(len(features_input.columns))
+        target_features[:] =np.nan
+        if len(retained_features_list)!=0:# If the list is not empty
+            for index, retained_feature in enumerate(retained_features_list):
+                target_features[int(index)] = retained_feature # Taking advantage of the fact, the feature identifiers is 0-based (0,1,2,3,4)
         #importances = list(rf.feature_importances_)
         #     # Get numerical feature importances
         # importances = list(rf.feature_importances_)# List of tuples with variable and importance
@@ -1554,30 +1579,20 @@ for thresh_tuple_index, thresh_tuple in enumerate(thresh_combo):
         # feature_importances = sorted(feature_importances, key = lambda x: x[1], reverse = True)# Print out the feature and importances 
         # [print('Variable: {:20} Importance: {}'.format(*pair)) for pair in feature_importances]
         #rf.fit(X_train,Y_train)
-        model_score = rf.score(X_test, Y_test)
-       #Save the computation score to the output data array  
-        ML_output_scores.loc[point] = model_score
-        #features = {'hot_days':0, 'seasonal_min':1, 'seasonal_mean':2, 'seasonal_max':3,
-                    #  'seasonal_GDD':4}
+
+
         #rf.get_params()
-        # L1-based feature selections
-        model = SelectFromModel(rf, prefit=True)
-        X_train_new = model.transform(X_train) # Selected new features
-        retained_features_list = [] # Create an empty list to store target feature identifiers
-        for col_No in range(X_train_new.shape[1]): # Iterate over number of features
-            X_retain = X_train_new[:, col_No]
-            for index, (col_head, col_ser) in enumerate(X_train.items()):
-                if np.array_equal(X_retain, col_ser, equal_nan=True):
-                    retained_features_list.append(index) 
-                else:
-                    continue
-        # Save the selecte feature result to the output data array
-        point["features"]= list(range(len(features_input.columns)))
-        target_features = np.empty(len(features_input.columns))
-        target_features[:] =np.nan
-        if len(retained_features_list)!=0:# If the list is not empty
-            for retained_feature in retained_features_list:
-                target_features[int(retained_feature)] = retained_feature # Taking advantage of the fact, the feature identifiers is 0-based (0,1,2,3,4)
+        # # L1-based feature selections
+        # #model = SelectFromModel(rf, prefit=True)
+        # X_train_new = model.transform(X_train) # Selected new features
+
+        # for col_No in range(X_train_new.shape[1]): # Iterate over number of features
+        #     X_retain = X_train_new[:, col_No]
+        #     for index, (col_head, col_ser) in enumerate(X_train.items()):
+        #         if np.array_equal(X_retain, col_ser, equal_nan=True):
+        #             retained_features_list.append(index) 
+        #         else:
+        #             continue
         #else: the target_features is all NaN if retained_features_list is empty
         ML_output_sm_ob_features.loc[point] = target_features
         print("Finish processing for point No.{} out of total {}".format(str(index_point+1),str(len(target_points))))  
