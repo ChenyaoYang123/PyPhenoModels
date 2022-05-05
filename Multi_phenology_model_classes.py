@@ -333,8 +333,12 @@ class sigmoid_model:
     def predict(self, x):
         para_a = self.a
         para_b = self.b
-        dd_day = 1 / (1 + math.exp(para_a * (x-para_b)))
-        return dd_day
+        try:
+            dd_day = 1 / (1 + math.exp(para_a * (x-para_b)))
+            return dd_day
+        except OverflowError as e:
+            print(str(e))
+            return 0 # If any failed predictions will consider in a given day, the accumulated GDD is null
 ###############################################################################
 class triangular_model:
     '''
@@ -358,16 +362,19 @@ class triangular_model:
         T_dmin = self.tdmin
         T_dopt = self.tdopt
         T_dmax = self.tdmax
-        
-        if x <= T_dmin:
-            dd_day = 0
-        elif (T_dmin < x) & (x <= T_dopt):
-            dd_day= (x - T_dmin)/(T_dopt - T_dmin)
-        elif (T_dopt < x) & (x < T_dmax):
-            dd_day= (x - T_dmax)/(T_dopt - T_dmax)
-        else:
-            dd_day = 0
-        return dd_day
+        try:
+            if x <= T_dmin:
+                dd_day = 0
+            elif (T_dmin < x) & (x <= T_dopt):
+                dd_day= (x - T_dmin)/(T_dopt - T_dmin)
+            elif (T_dopt < x) & (x < T_dmax):
+                dd_day= (x - T_dmax)/(T_dopt - T_dmax)
+            else:
+                dd_day = 0
+            return dd_day
+        except:
+            print("Simulation errors occur while running the triangular model")
+            return 0
 ###############################################################################
 class triangular_STICS_model:
     '''
@@ -391,16 +398,19 @@ class triangular_STICS_model:
         T_dmin = self.tdmin
         T_dmax = self.tdmax
         T_tdstop = self.tdstop
-
-        if x <= T_dmin:
-            dd_day = 0
-        elif (T_dmin < x) & (x < T_dmax):
-            dd_day = x - T_dmin
-        elif (T_dmax <= x) & (x< T_tdstop):
-            dd_day = (x - T_tdstop) * ((T_dmax-T_dmin)/(T_dmax-T_tdstop))
-        elif x >= T_tdstop:
-            dd_day = 0
-        return dd_day
+        try:
+            if x <= T_dmin:
+                dd_day = 0
+            elif (T_dmin < x) & (x < T_dmax):
+                dd_day = x - T_dmin
+            elif (T_dmax <= x) & (x< T_tdstop):
+                dd_day = (x - T_tdstop) * ((T_dmax-T_dmin)/(T_dmax-T_tdstop))
+            elif x >= T_tdstop:
+                dd_day = 0
+            return dd_day
+        except:
+            print("Simulation errors occur while running the triangular_STICS_model model")
+            return 0
 ###############################################################################
 class GDD_model:
     '''
@@ -418,11 +428,15 @@ class GDD_model:
     
     def predict(self, x): 
         T_dmin = self.tdmin
-        if x <= T_dmin:
-            dd_day = 0
-        else:
-            dd_day = x - T_dmin
-        return dd_day
+        try:
+            if x <= T_dmin:
+                dd_day = 0
+            else:
+                dd_day = x - T_dmin
+            return dd_day
+        except:
+            print("Simulation errors occur while running the GDD_model model")
+            return 0
 ###############################################################################
 class GDD_model_Richardson:
     '''
@@ -442,11 +456,15 @@ class GDD_model_Richardson:
     def predict(self, x): 
         T_dmin = self.tdmin
         T_dmax = self.tdmax
-        if x <= T_dmin:
-            dd_day = 0
-        else:
-            dd_day= max(min(x-T_dmin, T_dmax-T_dmin),0)
-        return dd_day
+        try:
+            if x <= T_dmin:
+                dd_day = 0
+            else:
+                dd_day= max(min(x-T_dmin, T_dmax-T_dmin),0)
+            return dd_day
+        except:
+            print("Simulation errors occur while running the GDD_model_Richardson")
+            return 0
 ###############################################################################
 class wang_model:
     '''
@@ -475,15 +493,19 @@ class wang_model:
         T_dmin = self.tdmin
         T_dopt = self.tdopt
         T_dmax = self.tdmax
-        # Compute the alpha that is going to be used as the exponent parameter in wang function
-        alpha = math.log(2) / math.log((T_dmax-T_dmin)/(T_dopt-T_dmin))
-        if (T_dmin <= x) & (x <= T_dmax):
-            fwang_numerator = (2 * math.pow(x-T_dmin, alpha) *  math.pow(T_dopt-T_dmin, alpha)) - math.pow(x-T_dmin, 2 * alpha)
-            fwang_denominator = math.pow(T_dopt-T_dmin, 2 * alpha)
-            dd_day = float(fwang_numerator/fwang_denominator)
-        else: # In case x < T_dmin or x > T_dmax
-            dd_day = 0 
-        return dd_day
+        try:
+            # Compute the alpha that is going to be used as the exponent parameter in wang function
+            alpha = math.log(2) / math.log((T_dmax-T_dmin)/(T_dopt-T_dmin))
+            if (T_dmin <= x) & (x <= T_dmax):
+                fwang_numerator = (2 * math.pow(x-T_dmin, alpha) *  math.pow(T_dopt-T_dmin, alpha)) - math.pow(x-T_dmin, 2 * alpha)
+                fwang_denominator = math.pow(T_dopt-T_dmin, 2 * alpha)
+                dd_day = float(fwang_numerator/fwang_denominator)
+            else: # In case x < T_dmin or x > T_dmax
+                dd_day = 0 
+            return dd_day
+        except:
+            print("Simulation errors occur while running the wang_model")
+            return 0
 ###############################################################################
 def phenology_model_run(T_input, thermal_threshold = 290, module = "STICS_GDD", DOY_format=True, from_budburst=True, **kwargs):
     '''
