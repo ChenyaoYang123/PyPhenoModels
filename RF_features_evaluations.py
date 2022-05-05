@@ -407,6 +407,30 @@ def get_latlon_names(ds_array):
     # lon_vec=ds_array[lon_name]
     return (lon_name,lat_name)
 ###############################################################################################################################################################################################################
+def arrange_layout(num, cols = np.arange(2,7,1) , first_match=True):
+    """
+    Arrange map layout for the simulated results.
+    Mandatory Parameters
+    ---------- 
+    num: int, total number of subplots to be used
+    cols: array-like, test different possible columns to arrange the subplots (Consider appropriate if num%col ==0)
+    first_match: bool, if return the first matching element from the computed list of cols.
+    """
+    target_cols = []
+    for col in cols:
+        remainder = num % col
+        if remainder ==0:
+            target_cols.append(col)
+        else:
+            continue
+    if len(target_cols) !=0:
+        if first_match:
+            return target_cols[0]
+        else:
+            return target_cols # A full list of matching columns is returned
+    else:
+        print("Not get desired number of columns layout for the map plot, consider different 'cols' input")
+###############################################################################################################################################################################################################
 def extract_fc_dataset(xr_concat, fc_var, ob_ser, lon1, lat1, ensemble_method=None, reduction_dim = None, **kwargs):
     '''
      Extract forecast datasets for a given point specified by lon and lat, while complement the gap period with observed data
@@ -1077,7 +1101,7 @@ def Derive_ML_FitData(T_min, T_max, phenology_pred, initial_date = pd.to_datetim
     # Monthly minimum and maximum temperature predictors
     months = list(pd.period_range(initial_date,initial_date+DateOffset(months=lead_time-1),freq="M").month) # Compute the target months
     # Define the monthly stat for calculations
-    monthly_stats = ["Tmin", "Tmax"]
+    monthly_stats = ["Tmin", "Tmax","GDD_sum"]
     for monthly_stat in monthly_stats:            
         for month in months:
             month_abbr = calendar.month_abbr[month]
@@ -1114,9 +1138,9 @@ def Derive_ML_FitData(T_min, T_max, phenology_pred, initial_date = pd.to_datetim
         # if max(twoyear_list) not in ML_df_dict["seasonal_mean"].keys():
         #     ML_df_dict["seasonal_mean"][max(twoyear_list)] = mean_temperature # Attach to target dict
         # Compute the GDD with base temperature corresponding to those of budburst thermal forcing module, i.e. variety-specific
-        seasonal_climate_GDD = max(seasonal_climate_Tmean.apply(GDD_simple, args=(GDD_threshold,)).cumsum())
+        seasonal_climate_GDD = seasonal_climate_Tmean.apply(GDD_simple, args=(GDD_threshold,))
         if max(twoyear_list) not in ML_df_dict["seasonal_GDD"].keys():
-            ML_df_dict["seasonal_GDD"][max(twoyear_list)] = seasonal_climate_GDD # Attach to target dict
+            ML_df_dict["seasonal_GDD"][max(twoyear_list)] = np.nansum(seasonal_climate_GDD) # Attach to target dict
         # # Compute the budburst DOY
         # dormancy_sm_ob, budburst_sm_ob = run_BRIN_model(T_min.loc[T_min.index.year.isin(twoyear_list)], T_max.loc[T_max.index.year.isin(twoyear_list)], 
         #                                                 Q10=1.52, CCU_dormancy = 183.23, 
@@ -1126,6 +1150,7 @@ def Derive_ML_FitData(T_min, T_max, phenology_pred, initial_date = pd.to_datetim
         for month in months: 
             monthly_Tmin = np.nanmean(seasonal_climate_Tmin[seasonal_climate_Tmin.index.month == month])
             monthly_Tmax = np.nanmean(seasonal_climate_Tmax[seasonal_climate_Tmax.index.month == month])
+            monthly_GDD_sum =  np.nansum(seasonal_climate_GDD[seasonal_climate_GDD.index.month == month])
             # Access the month abbreviation
             month_abbr = calendar.month_abbr[month]
             # Attach the monthly stat to target dict
@@ -1133,6 +1158,8 @@ def Derive_ML_FitData(T_min, T_max, phenology_pred, initial_date = pd.to_datetim
                 ML_df_dict[month_abbr+ "_Tmin"][max(twoyear_list)] = monthly_Tmin # Attach to target dict
             if max(twoyear_list) not in ML_df_dict[month_abbr+ "_Tmax"].keys():
                 ML_df_dict[month_abbr+ "_Tmax"][max(twoyear_list)] = monthly_Tmax # Attach to target dict
+            if max(twoyear_list) not in ML_df_dict[month_abbr+ "_GDD_sum"].keys():
+                ML_df_dict[month_abbr+ "_GDD_sum"][max(twoyear_list)] = monthly_GDD_sum # Attach to target dict
         # Attach the simulated budburst DOY into target dict
         if max(twoyear_list) not in ML_df_dict["phenology_SM"].keys():
             if not pd.isna(phenology_pred_year):
@@ -1331,9 +1358,9 @@ forecast_path = join(root_path, "Forecast_datasets_ECMWF") # Define the forecast
 output_path = join(root_path,"output") # Define the output path
 
 # 1.3 Path for the target shape files
-shape_path = join(script_drive, r"Mega\Workspace\SpatialModellingSRC\GIS_root\Shape\PT_wineRegions") # Define the main path to target shapefile 
+shape_path = join(script_drive, r"Mega\Workspace\SpatialModellingSRC\GIS_root\Root\shape_wine_regions") # Define the main path to target shapefile 
 study_shapes = glob.glob(join(shape_path,"*.shp")) # Obtain a list of shape files used for defining the study region
-study_region = "PT_WineRegions" # Define the name of file used for study region. 
+study_region = "DOC_PT" # Define the name of file used for study region. 
 study_outline = "PT_outline" # Define the name of file used for the background outline
 study_region_shape = [shape for shape in study_shapes if study_region in shape][0] # Squeeze the list
 study_outline_shape = [shape for shape in study_shapes if study_outline in shape][0] # Squeeze the list
@@ -1354,10 +1381,10 @@ if determine_lat_lon_vector=="by_shape":
     minx, miny, maxx, maxy = GDF_shape.total_bounds
     decimal_place = abs(decimal.Decimal(str(resolution)).as_tuple().exponent) # Extract number of decimal places in the input float
     # Round the boundary coordinates into target resolution
-    minx = round(minx,decimal_place) 
-    maxx = round(maxx,decimal_place) 
-    miny = round(miny,decimal_place) 
-    maxy = round(maxy,decimal_place)
+    minx = round(minx-1,decimal_place) 
+    maxx = round(maxx+1,decimal_place) 
+    miny = round(miny-1,decimal_place) 
+    maxy = round(maxy+1,decimal_place)
     # Form a pair of coordinates from existing shape file boundary and check if each point is within the shape
     lon_vector = np.arange(minx, maxx, resolution)
     lat_vector = np.arange(miny, maxy, resolution)
@@ -1419,10 +1446,15 @@ for forecast_month in forecast_time:
     # forecast_sm_dict[str(forecast_month)+"ob_ver"] = output_template_sm_ob.copy(deep=True)
     forecast_sm_dict[str(forecast_month)+"sm_budburst"] = output_template_sm_fc.copy(deep=True)
 # 3.2.4 Define the list of feature names used to fit the ML model
-features_names = ['hot_days', 'cold_days', 'seasonal_min', 'seasonal_max', 'seasonal_GDD',
-       'Sep_Tmin', 'Oct_Tmin', 'Nov_Tmin', 'Dec_Tmin', 'Jan_Tmin', 'Feb_Tmin',
-       'Mar_Tmin', 'Sep_Tmax', 'Oct_Tmax', 'Nov_Tmax', 'Dec_Tmax', 'Jan_Tmax',
-       'Feb_Tmax', 'Mar_Tmax']
+# features_names = ['hot_days', 'cold_days', 'seasonal_min', 'seasonal_max', 'seasonal_GDD',
+#        'Sep_Tmin', 'Oct_Tmin', 'Nov_Tmin', 'Dec_Tmin', 'Jan_Tmin', 'Feb_Tmin',
+#        'Mar_Tmin', 'Sep_Tmax', 'Oct_Tmax', 'Nov_Tmax', 'Dec_Tmax', 'Jan_Tmax',
+#        'Feb_Tmax', 'Mar_Tmax'] 
+features_names = ['hot_days', 'cold_days', 'seasonal_max', 'seasonal_GDD',
+'Jan_Tmin', 'Feb_Tmin', 'Mar_Tmin',  'Jan_Tmax', 'Feb_Tmax', 'Mar_Tmax', 'Sep_GDD_sum', 'Oct_GDD_sum', 'Nov_GDD_sum', 
+'Dec_GDD_sum', 'Jan_GDD_sum', 'Feb_GDD_sum', 'Mar_GDD_sum'] 
+#        'Feb_Tmax', 'Mar_Tmax'] 
+#features_names = features_names[:5] # FXIME in the second round, I only test the first 5 features
 features_num = len(features_names) # Number of features used
 ML_output_scores = output_template_score.copy(deep=True) # Create an output score array where the model score is saved for each point
 ML_output_sm_ob_features = xr.DataArray(coords=coords_xarray + [("features", list(range(features_num)))]) # Create an output score array where the retained features are saved for each point
@@ -1483,15 +1515,20 @@ for features_name in features_names:
 Summary_stat["total_scores"] = {}
 Summary_stat["score_0.5"] = {}
 Summary_stat["score_0.7"] = {}
-# 4.3 Define the output excel file
-output_csv = join(output_path,"out_budburst","feature_selections.csv") # Main result to look
+# 4.3 Define the output csv file path and other output path 
+output_budburst_path = join(output_path,"out_budburst","Feature_selections")
+output_csv = join(output_budburst_path, "feature_selections_current.csv") # Main result to look
+output_nc = join(output_budburst_path,"export_nc_list")
+mkdir(output_nc)
 # 4.4 Manually define the range of thresholds possibly used for each climate index fitted for ML model
 hot_days_threshold = np.arange(20, 30+2.5, 2.5)
 cold_days_threshold = np.arange(-5, 5+2.5, 2.5)
 GDD_threshold = np.arange(0, 10+2.5, 2.5)
-# 4.5 Generate the total combination tuples from all possible threshold combinations
+# 4.5 Get a list of month abbreviation names
+month_list = list(calendar.month_abbr)[1:]
+# 4.6 Generate the total combination tuples from all possible threshold combinations
 thresh_combo = list(product(hot_days_threshold, cold_days_threshold, GDD_threshold))
-# 4.6 Iterate over each combination tuple to test the RF model fitting score and number of relevant features under each combination
+# 4.7 Iterate over each combination tuple to test the RF model fitting score and number of relevant features under each combination
 for thresh_tuple_index, thresh_tuple in enumerate(thresh_combo):
     timer = Timer()
     timer.start()
@@ -1531,12 +1568,18 @@ for thresh_tuple_index, thresh_tuple in enumerate(thresh_combo):
             dormancy_sm_ob, budburst_sm_ob = run_BRIN_model(T_min, T_max, Q10=1.52, CCU_dormancy = 144.69, 
                                                             T0_dormancy = 244, CGDH_budburst = 493.9, 
                                               TMBc_budburst= 25, TOBc_budburst = 2.89, Richarson_model="daily") # The parameter set is applied for TF calibrated from Luisa. L. et al. 2020 
-            ######################Section for running the budburst model######################
+            ######################Section for running the budburst model##################################
         except:
             Bug_dict.update({"lon"+str(lon1)+"_lat"+str(lat1):'Issues in simulated values with observed weather!'}) # catch the erroneous simulation values
         # Compute the ML dataframe that is used to train the Random Forest model
         ML_df = Derive_ML_FitData(T_min, T_max, budburst_sm_ob,
                                 hot_day_threshold = hot_days_thresh, cold_day_threshold = cold_days_thresh, GDD_threshold = GDD_thresh )
+        # Only select desired columns
+        ML_df = ML_df.loc[:, np.logical_or(ML_df.columns.isin(features_names), ML_df.columns ==ML_df.columns[-1])]
+        # Get a list of column names indicative for the month
+        #Month_col_names = [col_name for col_name in ML_df.columns if any(month in col_name for month in month_list)]
+        # Get a subset of ML_df 
+       #ML_df = ML_df.loc[:, ~ML_df.columns.isin(Month_col_names)]
         # Convert the categorical variables into the dummy/indicative variables
         #ML_df_08_dummy = pd.get_dummies(ML_df_08, columns=ML_df_08.columns, prefix_sep="_percentile")
         ## Fitting the RF model and compute the score based on the testing datasets
@@ -1557,7 +1600,7 @@ for thresh_tuple_index, thresh_tuple in enumerate(thresh_combo):
         ML_output_scores.loc[point] = model_score
         ## Feature selection for the RF model
         # Construct the feature selectors for Random Forest
-        sel = SelectFromModel(RandomForestClassifier(n_estimators = 300,random_state = 42)).fit(X_train, Y_train) # Get reproducible results when setting the random state to 42
+        sel = SelectFromModel(RandomForestClassifier(n_estimators = 300, random_state = 42)).fit(X_train, Y_train) # Get reproducible results when setting the random state to 42
         # Get the retained feature identifiers
         #selected_feat= X_train.columns[(sel.get_support())] # get the feature names
         sel_feat_identifiers = np.arange(0, len(X_train.columns),1)[sel.get_support()] # The feature identifers are 0-based numbers. sel.get_support() return an array of bool to select feature with True value
@@ -1570,8 +1613,10 @@ for thresh_tuple_index, thresh_tuple in enumerate(thresh_combo):
         target_features = np.empty(len(features_input.columns))
         target_features[:] =np.nan
         if len(retained_features_list)!=0:# If the list is not empty
-            for index, retained_feature in enumerate(retained_features_list):
-                target_features[int(index)] = retained_feature # Taking advantage of the fact, the feature identifiers is 0-based (0,1,2,3,4)
+            for retained_feature in retained_features_list:
+                target_features[retained_feature] = retained_feature # Taking advantage of the fact, the feature identifiers is 0-based (0,1,2,3,4)
+        # Save the target feature into the xarray object
+        ML_output_sm_ob_features.loc[point] = target_features
         #importances = list(rf.feature_importances_)
         #     # Get numerical feature importances
         # importances = list(rf.feature_importances_)# List of tuples with variable and importance
@@ -1579,7 +1624,6 @@ for thresh_tuple_index, thresh_tuple in enumerate(thresh_combo):
         # feature_importances = sorted(feature_importances, key = lambda x: x[1], reverse = True)# Print out the feature and importances 
         # [print('Variable: {:20} Importance: {}'.format(*pair)) for pair in feature_importances]
         #rf.fit(X_train,Y_train)
-
 
         #rf.get_params()
         # # L1-based feature selections
@@ -1593,10 +1637,15 @@ for thresh_tuple_index, thresh_tuple in enumerate(thresh_combo):
         #             retained_features_list.append(index) 
         #         else:
         #             continue
-        #else: the target_features is all NaN if retained_features_list is empty
-        ML_output_sm_ob_features.loc[point] = target_features
         print("Finish processing for point No.{} out of total {}".format(str(index_point+1),str(len(target_points))))  
         timer.end()
+    # Save the data array objects into local disk files
+    combo_name_modify = combo_name.replace(":", "_")
+    ML_output_scores_da = ML_output_scores.to_dataset(name = "RF_score_{}".format(combo_name_modify))
+    ML_output_sm_ob_features_da = ML_output_sm_ob_features.to_dataset(name = "RF_features_{}".format(combo_name_modify))
+    for xarray_da in [ML_output_scores_da, ML_output_sm_ob_features_da]:
+        ML_output_name = list(xarray_da.data_vars)[0]
+        xarray_da.to_netcdf(join(output_nc, "{}.nc".format(ML_output_name)), mode='w', format="NETCDF4", engine="netcdf4")
     # Compute the summary stat for each threshold combination
     ML_score_70P = float(ML_output_scores.where(ML_output_scores>=0.7, drop=True).count()) # Count number of gird points where model score is equal to or greater than 0.7
     ML_score_50P = float(ML_output_scores.where(ML_output_scores>=0.5, drop=True).count()) # Count number of gird points where model score is equal to or greater than 0.5
@@ -1658,7 +1707,7 @@ plt.close(fig)
                                                    #label= ["feature_" + str(feature_num) for feature_num in ML_output_sm_ob_features_copy.features.data]  
 #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 # 5.2 Plot the spatial distribution of each retained/relevant feature
-list_array = [ ML_output_sm_ob_features_copy.where(ML_output_sm_ob_features_copy == feature_num, drop=True).squeeze()  for 
+list_array = [ ML_output_sm_ob_features_copy.where(ML_output_sm_ob_features_copy == feature_num, drop=True)  for 
               feature_num in ML_output_sm_ob_features_copy.features.data] # Retain a list of DataArray corresponding to each retained feature
 # 5.2.1 Set the fixed extent for each subplot map
 minx, miny, maxx, maxy = GDF_shape_outline.total_bounds # The extent coordinate is derived from outline shape file
@@ -1667,9 +1716,11 @@ extent=[round(np.min(minx),1)-0.5,round(np.max(maxx),1)+0.5, round(np.min(miny),
 grid_lons = np.arange(round(minx), round(maxx)+1, 1)
 grid_lats = np.arange(round(miny), round(maxy)+1, 1)
 # 5.2.3 Create a grid system to apply for subplots
-subplot_row, subplot_col = 3, 2
+#feature_num = len(ML_output_sm_ob_features_copy.features.data)
+#arrange_layout(feature_num, cols = np.arange(2,11,1)) 
+subplot_row, subplot_col = 5, 4
 grid = gridspec.GridSpec(nrows = subplot_row, ncols = subplot_col, hspace = 0.1, wspace = 0.1)
-fig = plt.figure(figsize=(4, 8)) # Create a figure instance class
+fig = plt.figure(figsize=(12, 16)) # Create a figure instance class
 axis_list=[] # append to this empty list a number of grid specifications
 if (subplot_row>1) and (subplot_col>1):
     for row in range(subplot_row):
@@ -1738,52 +1789,55 @@ fig = plt.figure() # Create a figure instance class
 subplot = fig.add_subplot(111, projection=proj)
 # 5.3.3 Get the longitude and latitude names
 lon_name, lat_name = get_latlon_names(ML_output_scores)
-# 5.3.4 Obtain the longitude and latitude vectors
+# 5.3.4 Set the fixed extent for each subplot map
+minx, miny, maxx, maxy = GDF_shape_outline.total_bounds # The extent coordinate is derived from outline shape file
+extent=[round(np.min(minx),1)-0.5,round(np.max(maxx),1)+0.5, round(np.min(miny),1)-0.5, round(np.max(maxy),1)+0.5] #
+# 5.3.5 Obtain the longitude and latitude vectors
 lonvec, latvec = ML_output_scores[lon_name].data, ML_output_scores[lat_name].data
 #lonvec = np.array(list(lonvec) +  [max(lonvec) + round(np.diff(lonvec)[0],1)])
 #latvec = np.array(list(latvec) +  [max(latvec) + round(np.diff(latvec)[0],1)])
-# 5.3.5 Get the projected x, y coordinates
+# 5.3.6 Get the projected x, y coordinates
 dlon = np.mean(lonvec[1:] - lonvec[:-1])
 dlat = np.mean(latvec[1:] - latvec[:-1])
 x, y = np.meshgrid( np.hstack((lonvec[0] - dlon/2, lonvec + dlon/2)),
                 np.hstack((latvec[0] - dlat/2, latvec + dlat/2)) )
 #x, y = np.meshgrid(lonvec,latvec)
-# 5.3.6 Define the data array bounds (vmin, vmax)
+# 5.3.7 Define the data array bounds (vmin, vmax)
 bounds = np.linspace(0, 1, cmap.N+1)
 norm_bound =  mpl.colors.BoundaryNorm(boundaries=bounds, ncolors = cmap.N, clip = False, extend= "neither") # Normalize the bounds
-# 5.3.7 Make the pcolormesh plot
+# 5.3.8 Make the pcolormesh plot
 subplot.pcolormesh(x, y, ML_output_scores.data,
     cmap=cmap, shading= "auto" # By default, it is "flat", so x and y should have one more dimension than data #shading= "nearest" or "flat" # nearest
     )
-# 5.3.8 Set the extent for each subplot map
+# 5.3.9 Set the extent for each subplot map
 subplot.set_extent(extent, crs=origin)
-# 5.3.9 Add the geometry of study region for each subplot map
+# 5.3.10 Add the geometry of study region for each subplot map
 subplot.add_geometries(GDF_shape.geometry, proj,
 facecolor='none', edgecolor='black', linewidth=1)
-# 5.3.10 Add the geometry of study outline for each subplot map
+# 5.3.11 Add the geometry of study outline for each subplot map
 subplot.add_geometries(GDF_shape_outline.geometry, proj,
 facecolor='none', edgecolor='black', linewidth=1)
-# 5.3.11 Set the subplot title
+# 5.3.12 Set the subplot title
 subplot_name = "RF model testing score" # Set the plot title str
 subplot.set_title(subplot_name, fontdict={"fontsize":6,"fontweight":'bold'},
                            loc="right", x=0.95, y=0.95, pad=0.05) # Set the subplot title
-# 5.3.12 Add the gridlines and tick labels to the subplot map.
+# 5.3.13 Add the gridlines and tick labels to the subplot map.
 add_gridlines(subplot, grid_lons,  grid_lats)
-# 5.3.13 Add the scale bar of the map plot
+# 5.3.14 Add the scale bar of the map plot
 add_scale_bar(subplot, lonvec, latvec)
-# 5.3.14 Add the colorbar axe
+# 5.3.15 Add the colorbar axe
 cbar_ax = fig.add_axes([0.72, 0.3, 0.01, 0.3])
-# 5.3.15 Add the colorbar to the figure class instance
+# 5.3.16 Add the colorbar to the figure class instance
 cb  = mpl.colorbar.ColorbarBase(cbar_ax, cmap = cmap,
                                 norm = norm_bound,
                                 extend = "neither",
                                 orientation = "vertical")
-# 5.3.16 Set the colorbar label
+# 5.3.17 Set the colorbar label
 cb.ax.set_ylabel("Model testing score", rotation=270, fontdict={"size":7})
 #cb.set_ticks(bounds)
-# 5.3.17 Set the padding between colorbar label and colorbar    
+# 5.3.18 Set the padding between colorbar label and colorbar    
 cb.ax.get_yaxis().labelpad = 10
-# 5.3.18 Save the plot to local disk
+# 5.3.19 Save the plot to local disk
 mkdir(output_path)
 fig.savefig(join(output_path,"out_budburst","RF_scores.png"), dpi=300)
 plt.close(fig)
