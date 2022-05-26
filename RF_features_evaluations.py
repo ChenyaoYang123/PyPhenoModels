@@ -1069,8 +1069,11 @@ def extract_nearest_neighbours(data_arr, data_ser, lon1, lat1, ens_dim=False, **
         # Here the lon_index and lat_index need to be checked if they are unchanged for a certain number of loops. Panda series is returned
     return data_ser_test.to_series() # When the while loop is break, meaning Non-NaN value series is found and returned in the form of Panda series
 ###############################################################################################################################################################################################################
-def Derive_ML_FitData(T_min, T_max, phenology_pred, initial_date = pd.to_datetime("09-01",format="%m-%d"), lead_time = 7,
-                        hot_day_threshold = 25, cold_day_threshold = 0, GDD_threshold= 0): # months = list(range(9,12+1)) + list(range(1,3+1)) ):
+def Derive_ML_FitData(T_min, T_max, phenology_pred, initial_date = pd.to_datetime("09-01",format="%m-%d"), lead_time = 7, 
+                      hot_day_threshold_weak = 20, hot_day_threshold_moderate = 25, hot_day_threshold_strong = 30,
+                      cold_day_threshold_weak = 5, cold_day_threshold_moderate = 0, cold_day_threshold_strong = -5,
+                      GDD_threshold= 0, monthly_HD_CD= True, categorize_var = True,
+                      strong=False, moderate=False,weak=False): # months = list(range(9,12+1)) + list(range(1,3+1)) ):
     """
     Derive a dataframe from the observed weather and phenology simulation. The anomaly values relative to 
     climatology mean (over all study years) is computed. 
@@ -1085,81 +1088,137 @@ def Derive_ML_FitData(T_min, T_max, phenology_pred, initial_date = pd.to_datetim
     hot_day_threshold: int, the maximum temperature threshold to compute the hot days. Defaul to 25 C° following the CDO definition of eca_csu
     cold_day_threshold: int, number of months from the initial_date. Defaul to 0 C° following the CDO definition of eca_cfd
     GDD_threshold: float, the base temperature used to calculate the phenology progressing rate. Default to budburst thermal forcing module parameter, variety-specific value. 
+    monthly_HD_CD: bool, if the monthly hot days and cold days should be computed as the predictors
+    categorize_var: bool, convert selected continuous variables into the categorical variables
+    strong: bool, if turn on the strong category of hot or cold days
+    moderate: bool, if turn on the moderate category of hot or cold days
+    weak: bool, if turn on the weak category of hot or cold days
     """
     assert np.array_equal(T_min.index.year.unique(), T_max.index.year.unique(), equal_nan=False), "number of years are not equal between Tmin and Tmax series" # DO not compare NaN to ensure no NaN data is extracted
     # Access the full study years
     full_years = T_min.index.year.unique()
+    # Compute the mean temperature series
+    T_mean = pd.Series(np.nanmean([T_min,T_max], axis=0), index=T_min.index, name="tg")
     #study_years = years[1:] # For budburst simulations, the study years shall start from the second year after the first one.
     ML_df_dict= {} # Create an empty dictionary to store values
     # Initialize the dict for each independent variables (or input features for classification)
-    ML_df_dict["hot_days"] = {}
-    ML_df_dict["cold_days"] = {}
-    ML_df_dict["seasonal_min"] = {}
-    #ML_df_dict["seasonal_mean"] = {}
-    ML_df_dict["seasonal_max"] = {}
-    ML_df_dict["seasonal_GDD"] = {}
+    # ML_df_dict["hot_days"] = {}
+    # ML_df_dict["cold_days"] = {}
+    # ML_df_dict["seasonal_min"] = {}
+    # #ML_df_dict["seasonal_mean"] = {}
+    # ML_df_dict["seasonal_max"] = {}
+    # ML_df_dict["seasonal_GDD"] = {}
     # Monthly minimum and maximum temperature predictors
-    months = list(pd.period_range(initial_date,initial_date+DateOffset(months=lead_time-1),freq="M").month) # Compute the target months
-    # Define the monthly stat for calculations
-    monthly_stats = ["Tmin", "Tmax","GDD_sum"]
+    # Compute the list of months involved for the analysis
+    months = list(pd.period_range(initial_date, initial_date + DateOffset(months=lead_time-1), freq="M").month) 
+    # # Define the monthly stat for calculations
+    monthly_stats = ["hot_days", "cold_days"]
     for monthly_stat in monthly_stats:            
         for month in months:
             month_abbr = calendar.month_abbr[month]
-            ML_df_dict[month_abbr+ "_{}".format(monthly_stat)] = {}
+            for index_class in ["weak", "moderate", "strong"]:
+                Key_name = month_abbr + "_" + index_class + "_" + monthly_stat
+                ML_df_dict[Key_name] = {}
     # Initialize the dict for target output variable
     ML_df_dict["phenology_SM"] = {}
     #initial_date_M_D_format =  initial_date.strftime("%m-%d")
     for twoyear_list, phenology_pred_year in zip(sort_twoyear_combo(list(full_years)), phenology_pred):
-        # Compute the mean temperature series
-        T_mean = pd.Series(np.nanmean([T_min,T_max], axis=0), index=T_min.index, name="tg")
         # Subset the consecutively 2-year climate so that it begins and ends over a specific range within this 2-year
         seasonal_climate_Tmin = subset_two_year_climate(T_min, twoyear_list, initial_date, lead_time)
         seasonal_climate_Tmax = subset_two_year_climate(T_max, twoyear_list, initial_date, lead_time)
         seasonal_climate_Tmean = subset_two_year_climate(T_mean, twoyear_list, initial_date, lead_time)
+        ####################  Deal with weekly statistics ####################
+        # Compute the weekly statistics
+        Tmin_weekly = seasonal_climate_Tmin.resample("W", closed="right",label="left").mean()
+        Tmax_weekly = seasonal_climate_Tmax.resample("W", closed="right",label="left").mean()
+        GDD_weekly = seasonal_climate_Tmean.resample("W", closed="right",label="left").sum()
+        # Removing the first week stat to have a 30 week timespan 
+        Tmin_weekly = Tmin_weekly[1:]
+        Tmax_weekly = Tmax_weekly[1:]
+        GDD_weekly = GDD_weekly[1:]
+        # Form a dict to comprise the three series
+        ser_dict = {"Tmin":Tmin_weekly, "Tmax":Tmax_weekly, "GDD":GDD_weekly}
+        # Iterate over each element of the series
+        for var_name , var_ser in ser_dict.items():
+            for index, (date, value) in enumerate(var_ser.items()):
+                if index+1>= 31: # The 31st week should be discarded to be consistent that only 30 weeks are available
+                    continue 
+                week_name = "week" + str(index+1) + "_" + var_name
+                if week_name not in ML_df_dict.keys():
+                    ML_df_dict[week_name] = {}
+                if max(twoyear_list) not in ML_df_dict[week_name].keys():
+                    ML_df_dict[week_name][max(twoyear_list)] =  value # Assign the weekly mean value into target dict
         #target_period = pd.period_range(initial_date,initial_date+DateOffset(months=lead_time-1),freq="M")
-        # Compute the number of hot days (>=25 celcius degree)
-        hot_days= seasonal_climate_Tmax[seasonal_climate_Tmax>=hot_day_threshold].count()
-        if max(twoyear_list) not in ML_df_dict["hot_days"].keys():
-            ML_df_dict["hot_days"][max(twoyear_list)] = hot_days # Attach to target dict
-        # Compute the number of cold days (<0 celcius degree)
-        cold_days= seasonal_climate_Tmin[seasonal_climate_Tmin<=cold_day_threshold].count()
-        if max(twoyear_list) not in ML_df_dict["cold_days"].keys():
-            ML_df_dict["cold_days"][max(twoyear_list)] = cold_days # Attach to target dict
-        # Compute the minimum temperature
-        min_temperature = np.nanmean(seasonal_climate_Tmin)
-        if max(twoyear_list) not in ML_df_dict["seasonal_min"].keys():
-            ML_df_dict["seasonal_min"][max(twoyear_list)] = min_temperature # Attach to target dict   
-        # Compute the minimum temperature
-        max_temperature = np.nanmean(seasonal_climate_Tmax)
-        if max(twoyear_list) not in ML_df_dict["seasonal_max"].keys():
-            ML_df_dict["seasonal_max"][max(twoyear_list)] = max_temperature # Attach to target dict   
+        # seasonal_climate_GDD = seasonal_climate_Tmean.apply(GDD_simple, args=(GDD_threshold,))
+        # d1 = seasonal_climate_Tmean.index[0]
+        # d2 = seasonal_climate_Tmean.index[-1]
+        # monday1= (d1- timedelta(days=d1.weekday()))
+        # monday2= (d2- timedelta(days=d2.weekday()))
+        # (monday2-monday1).days/7
+        # hot_days= seasonal_climate_Tmax[seasonal_climate_Tmax>=hot_day_threshold].count()
+        # if max(twoyear_list) not in ML_df_dict["hot_days"].keys():
+        #     ML_df_dict["hot_days"][max(twoyear_list)] = hot_days # Attach to target dict
+        # # Compute the number of cold days (<0 celcius degree)
+        # cold_days= seasonal_climate_Tmin[seasonal_climate_Tmin<=cold_day_threshold].count()
+        # if max(twoyear_list) not in ML_df_dict["cold_days"].keys():
+        #     ML_df_dict["cold_days"][max(twoyear_list)] = cold_days # Attach to target dict
+        # # Compute the minimum temperature
+
+        # if max(twoyear_list) not in ML_df_dict["seasonal_min"].keys():
+        #     ML_df_dict["seasonal_min"][max(twoyear_list)] = min_temperature # Attach to target dict   
+        # # Compute the minimum temperature
+        # max_temperature = np.nanmean(seasonal_climate_Tmax)
+        # if max(twoyear_list) not in ML_df_dict["seasonal_max"].keys():
+        #     ML_df_dict["seasonal_max"][max(twoyear_list)] = max_temperature # Attach to target dict   
         # Compute the average temperature
         # mean_temperature = np.nanmean(seasonal_climate_Tmean)
         # if max(twoyear_list) not in ML_df_dict["seasonal_mean"].keys():
         #     ML_df_dict["seasonal_mean"][max(twoyear_list)] = mean_temperature # Attach to target dict
         # Compute the GDD with base temperature corresponding to those of budburst thermal forcing module, i.e. variety-specific
-        seasonal_climate_GDD = seasonal_climate_Tmean.apply(GDD_simple, args=(GDD_threshold,))
-        if max(twoyear_list) not in ML_df_dict["seasonal_GDD"].keys():
-            ML_df_dict["seasonal_GDD"][max(twoyear_list)] = np.nansum(seasonal_climate_GDD) # Attach to target dict
+        # seasonal_climate_GDD = seasonal_climate_Tmean.apply(GDD_simple, args=(GDD_threshold,))
+        # if max(twoyear_list) not in ML_df_dict["seasonal_GDD"].keys():
+        #     ML_df_dict["seasonal_GDD"][max(twoyear_list)] = np.nansum(seasonal_climate_GDD) # Attach to target dict
         # # Compute the budburst DOY
         # dormancy_sm_ob, budburst_sm_ob = run_BRIN_model(T_min.loc[T_min.index.year.isin(twoyear_list)], T_max.loc[T_max.index.year.isin(twoyear_list)], 
         #                                                 Q10=1.52, CCU_dormancy = 183.23, 
         #                                                 T0_dormancy = 213, CGDH_budburst = 293.1, 
         #                                                 TMBc_budburst= 25, TOBc_budburst = 5.28, Richarson_model="daily")
-        # Compute monthly average minimum and maximum temperatures as part of the predictors from September to March
-        for month in months: 
-            monthly_Tmin = np.nanmean(seasonal_climate_Tmin[seasonal_climate_Tmin.index.month == month])
-            monthly_Tmax = np.nanmean(seasonal_climate_Tmax[seasonal_climate_Tmax.index.month == month])
-            monthly_GDD_sum =  np.nansum(seasonal_climate_GDD[seasonal_climate_GDD.index.month == month])
-            # Access the month abbreviation
-            month_abbr = calendar.month_abbr[month]
-            # Attach the monthly stat to target dict
-            if max(twoyear_list) not in ML_df_dict[month_abbr+ "_Tmin"].keys():
-                ML_df_dict[month_abbr+ "_Tmin"][max(twoyear_list)] = monthly_Tmin # Attach to target dict
-            if max(twoyear_list) not in ML_df_dict[month_abbr+ "_Tmax"].keys():
-                ML_df_dict[month_abbr+ "_Tmax"][max(twoyear_list)] = monthly_Tmax # Attach to target dict
-            if max(twoyear_list) not in ML_df_dict[month_abbr+ "_GDD_sum"].keys():
-                ML_df_dict[month_abbr+ "_GDD_sum"][max(twoyear_list)] = monthly_GDD_sum # Attach to target dict
+        ####################  Deal with monthly statistics ####################
+        if monthly_HD_CD:
+            # Compute monthly hot days and cold days as part of the predictors from September to March
+            for month in months: 
+                # Get the monthly Tmin and Tmax
+                monthly_Tmin = seasonal_climate_Tmin[seasonal_climate_Tmin.index.month == month]
+                monthly_Tmax = seasonal_climate_Tmax[seasonal_climate_Tmax.index.month == month]
+                # Compute the hot and cold days
+                # Compute the number of hot days in different categories for a given month
+                monthly_hot_days_weak= monthly_Tmax[monthly_Tmax>=hot_day_threshold_weak].count()
+                monthly_hot_days_moderate= monthly_Tmax[monthly_Tmax>=hot_day_threshold_moderate].count()
+                monthly_hot_days_strong= monthly_Tmax[monthly_Tmax>=hot_day_threshold_strong].count()
+                # Compute the number of cold days for a given month            
+                monthly_cold_days_weak = monthly_Tmin[monthly_Tmin<=cold_day_threshold_weak].count()
+                monthly_cold_days_moderate = monthly_Tmin[monthly_Tmin<=cold_day_threshold_moderate].count()
+                monthly_cold_days_strong = monthly_Tmin[monthly_Tmin<=cold_day_threshold_strong].count()
+                #monthly_GDD_sum =  np.nansum(seasonal_climate_GDD[seasonal_climate_GDD.index.month == month])
+                # Access the month abbreviation
+                month_abbr = calendar.month_abbr[month]
+                # Attach the monthly hot and cold days stat to target dict
+                if strong:
+                    if max(twoyear_list) not in ML_df_dict[month_abbr+ "_strong_hot_days"].keys():
+                        ML_df_dict[month_abbr+ "_strong_hot_days"][max(twoyear_list)] = monthly_hot_days_strong # Attach to target dict    
+                    if max(twoyear_list) not in ML_df_dict[month_abbr+ "_strong_cold_days"].keys():
+                        ML_df_dict[month_abbr+ "_strong_cold_days"][max(twoyear_list)] = monthly_cold_days_strong # Attach to target dict
+                elif moderate:
+                    if max(twoyear_list) not in ML_df_dict[month_abbr+ "_moderate_hot_days"].keys():
+                        ML_df_dict[month_abbr+ "_moderate_hot_days"][max(twoyear_list)] = monthly_hot_days_moderate # Attach to target dict    
+                    if max(twoyear_list) not in ML_df_dict[month_abbr+ "_moderate_cold_days"].keys():
+                        ML_df_dict[month_abbr+ "_moderate_cold_days"][max(twoyear_list)] = monthly_cold_days_moderate # Attach to target dict
+                elif weak:
+                    if max(twoyear_list) not in ML_df_dict[month_abbr+ "_weak_hot_days"].keys():
+                        ML_df_dict[month_abbr+ "_weak_hot_days"][max(twoyear_list)] = monthly_hot_days_weak # Attach to target dict
+                     # Attach the monthly cold day to target dict
+                    if max(twoyear_list) not in ML_df_dict[month_abbr+ "_weak_cold_days"].keys():
+                        ML_df_dict[month_abbr+ "_weak_cold_days"][max(twoyear_list)] = monthly_cold_days_weak # Attach to target dict
         # Attach the simulated budburst DOY into target dict
         if max(twoyear_list) not in ML_df_dict["phenology_SM"].keys():
             if not pd.isna(phenology_pred_year):
@@ -1168,17 +1227,31 @@ def Derive_ML_FitData(T_min, T_max, phenology_pred, initial_date = pd.to_datetim
                 ML_df_dict["phenology_SM"][max(twoyear_list)] = np.nan
             else:
                 continue
+            # if max(twoyear_list) not in ML_df_dict[month_abbr+ "_GDD_sum"].keys():
+            #     ML_df_dict[month_abbr+ "_GDD_sum"][max(twoyear_list)] = monthly_GDD_sum # Attach to target dict
     # Create the target dataframe with absolute values
     ML_df_abs = pd.DataFrame(ML_df_dict)
     # Fill na if any
     if any(ML_df_abs.isnull().any()):
         ML_df_abs.fillna(method="ffill", inplace=True)
+    # Check if the phenology SM is in the last column of the df
+    if "phenology_SM" != ML_df_abs.columns[-1]:
+        list_of_main_columns =  [col_name for col_name in ML_df_abs.columns if col_name != "phenology_SM"]
+        # Add the list of final columns 
+        list_of_main_columns_final = list_of_main_columns + ["phenology_SM"]
+        # Re-oder the df columns
+        ML_df_abs = ML_df_abs.reindex(columns = list_of_main_columns_final, copy =True)
     # Copy the df to a new one to calculate the anomalous phenology occurrence 
-    ML_df_category = ML_df_abs.copy(deep=True)
-    for col_name in ML_df_category.columns:
-        #ML_df_anomaly[col_name] = ML_df_anomaly[col_name].apply(lambda x: x - np.nanmean(ML_df_anomaly[col_name])) # Apply the abnormaly calculation in each yearly value
-        ML_df_category[col_name] = ML_df_category[col_name].apply(categorize_variable, args=(ML_df_category[col_name],) ) # Categorize the variables according to its percentile distribution over years
-    
+    if categorize_var:
+        ML_df_category = ML_df_abs.copy(deep=True)
+        target_col_name = ML_df_category.columns[-1]
+        ML_df_category[target_col_name] = ML_df_category[target_col_name].apply(categorize_variable, args=(ML_df_category[target_col_name],) ) # Categorize the variables according to its percentile distribution over years
+        # for col_name in ML_df_category.columns:
+        #     #ML_df_anomaly[col_name] = ML_df_anomaly[col_name].apply(lambda x: x - np.nanmean(ML_df_anomaly[col_name])) # Apply the abnormaly calculation in each yearly value
+        #     ML_df_category[col_name] = ML_df_category[col_name].apply(categorize_variable, args=(ML_df_category[col_name],) ) # Categorize the variables according to its percentile distribution over years
+        return ML_df_category
+    else:
+        return ML_df_abs
     # Round the element to the nearest integer for hot and cold days stat
     # ML_df_anomaly["hot_days"] = ML_df_anomaly["hot_days"].apply(lambda x: round(x))
     # ML_df_anomaly["cold_days"] = ML_df_anomaly["cold_days"].apply(lambda x: round(x))
@@ -1187,7 +1260,6 @@ def Derive_ML_FitData(T_min, T_max, phenology_pred, initial_date = pd.to_datetim
     # ML_df_anomaly["hot_days"]   = ML_df_anomaly["hot_days"].apply(categorize_variable, args=ML_df_anomaly["hot_days"])
     
     # ML_df_anomaly["phenology_SM"]   = ML_df_anomaly["phenology_SM"].apply(phenology_categoty, args=(5,))
-    return ML_df_category  
 ###############################################################################################################################################################################################################  
 def subset_dataset(xarray_data, lon_target_vector, lat_target_vector, study_period, preceding_year = True):
     """
@@ -1335,8 +1407,76 @@ def write_df_to_csv(output_file_path, df):
 #             for subkey in df_dict_BBCH_unique[key].keys():
 #                 writer.writerow([subkey, df_dict_BBCH_unique[key][subkey]])
 ########################################################################## Function Blocks ####################################################################################################################
+def write_CF_attrs(da, CRS_str = "epsg:4326", grid_mapping_name ="CRS"):
+    """
+    Write the CF convention to the target dataset
+    
+    Mandatory Parameters
+    ---------- 
+    da: xarray data array, the input xarray dataset object
+    CRS_str: str, the CRS string
+    grid_mapping_name: str, the grid mapping name
+    """
+    if isinstance(da,  xr.core.dataset.Dataset):
+        # Get the underlying var name
+        da_var_name = list(da.data_vars)[0]
+        da_array = da[da_var_name]
+    else:
+        da_array = da.copy(deep=True) # Then it must be a xr.core.dataset.Dataset instance
+    # Get the actual lon and lat name for the data array
+    lon_name, lat_name = get_latlon_names(da_array)
+    # Write the CF convention to the target dataset
+    da_array.rio.write_crs(CRS_str, grid_mapping_name = grid_mapping_name, inplace=True).rio.set_spatial_dims(x_dim= lon_name, y_dim=lat_name, inplace =True).rio.write_coordinate_system(inplace=True)
+    return da_array
 ###############################################################################################################################################################################################################
-
+def normalize_CMarray(input_array):
+    """
+    Normalize the input Confusion Matrix array row-by-row 
+    
+    Mandatory Parameters
+    ---------- 
+    input_array: input array, the array that represents the CM array to  be normalized
+    """
+    # Create the target empty array final
+    CM_final = np.empty(input_array.shape) 
+    CM_final[:] =np.nan
+    CM_sum_rows = input_array.shape[0]
+    # Iterate over each row and normalize the row values and write it into target array
+    for row in range(CM_sum_rows):
+        row_sum = np.nansum(input_array[row,:])
+        row_norm = input_array[row,:] / row_sum # Normalize the row values by dividing them with the row sum
+        CM_final[row, :] = row_norm # Write the results input CM_final
+    return CM_final
+###############################################################################################################################################################################################################
+def count_array_freq(target_feature_list):
+    """
+    Count the number of occurrence of features that are retained.
+    For each repetition of ML running, the feature retaintion is evaluated. The feature will then be considered as retained if 
+    at lease half of repetitions gave results to retain.
+    
+    Mandatory Parameters
+    ---------- 
+    target_feature_list: list of input array, the list of arrays to count the frequency of occurrence of retained features  
+    """
+    # Convert the input list into array
+    target_feature_array = np.array(target_feature_list)
+    # Decompose the shape para into desired parameters, e.g. ML repetition number and feature number
+    ML_rep, feature_num= target_feature_array.shape
+    # Create an empty array store feature count results
+    target_features_arr = np.empty(feature_num)
+    target_features_arr[:] =np.nan
+    # Iterate over each feature to count number of occurrence for each unique value
+    for feature_id in range(feature_num):
+        # Select each column data in the array that corresponds to the feature selection result for a given feature 
+        feature_array = target_feature_array[:, feature_id]
+        # Count the frequency of unique numbers in the array
+        unique, counts = np.unique(feature_array[~np.isnan(feature_array)], return_counts=True)
+        # Set the final feature count value
+        if (len((counts/ML_rep)>=0.5)==0) or ((counts/ML_rep) <0.5): # If this results in an empty array
+            target_features_arr[feature_id]=np.nan
+        elif (counts/ML_rep)>=0.5: # If number of counts over repetitions exceed 0.5, then this featuer should be assigned value of 1 (to keep) 
+            target_features_arr[feature_id]=feature_id
+    return target_features_arr
 #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 #+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ Coding Blocks ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 # 1. Specify all user-dependent path and other necessary constant input variables
@@ -1449,10 +1589,32 @@ for forecast_month in forecast_time:
 # features_names = ['hot_days', 'cold_days', 'seasonal_min', 'seasonal_max', 'seasonal_GDD',
 #        'Sep_Tmin', 'Oct_Tmin', 'Nov_Tmin', 'Dec_Tmin', 'Jan_Tmin', 'Feb_Tmin',
 #        'Mar_Tmin', 'Sep_Tmax', 'Oct_Tmax', 'Nov_Tmax', 'Dec_Tmax', 'Jan_Tmax',
-#        'Feb_Tmax', 'Mar_Tmax'] 
-features_names = ['hot_days', 'cold_days', 'seasonal_max', 'seasonal_GDD',
-'Jan_Tmin', 'Feb_Tmin', 'Mar_Tmin',  'Jan_Tmax', 'Feb_Tmax', 'Mar_Tmax', 'Sep_GDD_sum', 'Oct_GDD_sum', 'Nov_GDD_sum', 
-'Dec_GDD_sum', 'Jan_GDD_sum', 'Feb_GDD_sum', 'Mar_GDD_sum'] 
+#        'Feb_Tmax', 'Mar_Tmax']
+# initial_date+DateOffset(months=lead_time-1)
+initial_date_features = pd.to_datetime("09-01",format="%m-%d") # The starting date to compute predictor statistics for building up the ML model
+#end_date_features = pd.to_datetime("1991-03-31",format="%Y-%m-%d") # The ending date to compute predictor statistics for building up the ML model
+period_range = pd.period_range(initial_date_features, initial_date_features + DateOffset(weeks=30),freq="W") 
+# Collect the weekly features
+weekely_features = [] 
+for i in np.arange(1, 31, 1):
+    weekly_Tmin = "week" + str(i) + "_Tmin"
+    weekly_Tmax = "week" + str(i) + "_Tmax"
+    weekly_GDD_sum= "week" + str(i) + "_GDD"
+    weekely_features.append(weekly_Tmin)
+    weekely_features.append(weekly_Tmax)
+    weekely_features.append(weekly_GDD_sum)
+# Collect the monthly features
+monthly_features = [] 
+for month in  [9, 10, 11, 12, 1, 2, 3]:
+    month_abbr = calendar.month_abbr[month]
+    for index_class in ["strong"]: #["weak", "moderate", "strong"]
+        monthly_HD = month_abbr + "_" + index_class + "_"+ "hot_days"
+        monthly_CD = month_abbr + "_" + index_class + "_"+  "cold_days"
+        monthly_features.append(monthly_HD)
+        monthly_features.append(monthly_CD)
+# A list of feature names to be used as the predicators
+features_names = weekely_features +   monthly_features              # ['hot_days', 'seasonal_max', 'seasonal_GDD', #'cold_days',
+#'Jan_Tmax', 'Feb_Tmax', 'Mar_Tmax', 'Jan_Tmin', 'Feb_Tmin', 'Mar_Tmin', 'Jan_GDD_sum', 'Feb_GDD_sum','Mar_GDD_sum']  #'Sep_GDD_sum', 'Oct_GDD_sum', 'Nov_GDD_sum','Dec_GDD_sum',
 #        'Feb_Tmax', 'Mar_Tmax'] 
 #features_names = features_names[:5] # FXIME in the second round, I only test the first 5 features
 features_num = len(features_names) # Number of features used
@@ -1521,24 +1683,39 @@ output_csv = join(output_budburst_path, "feature_selections_current.csv") # Main
 output_nc = join(output_budburst_path,"export_nc_list")
 mkdir(output_nc)
 # 4.4 Manually define the range of thresholds possibly used for each climate index fitted for ML model
-hot_days_threshold = np.arange(20, 30+2.5, 2.5)
-cold_days_threshold = np.arange(-5, 5+2.5, 2.5)
-GDD_threshold = np.arange(0, 10+2.5, 2.5)
+hot_days_threshold_weak = np.arange(20, 21+1, 1)
+cold_days_threshold_weak = np.arange(1, 2+1, 1)
+hot_days_threshold_moderate = np.arange(22, 23+1, 1)
+cold_days_threshold_moderate = np.arange(-1, 0+1, 1)
+hot_days_threshold_strong = np.arange(24, 25+1, 1)
+cold_days_threshold_strong = np.arange(-3, -2+1, 1)
+GDD_threshold = np.arange(0, 5+2.5, 2.5)
 # 4.5 Get a list of month abbreviation names
 month_list = list(calendar.month_abbr)[1:]
 # 4.6 Generate the total combination tuples from all possible threshold combinations
-thresh_combo = list(product(hot_days_threshold, cold_days_threshold, GDD_threshold))
-# 4.7 Iterate over each combination tuple to test the RF model fitting score and number of relevant features under each combination
+thresh_combo = list(product(hot_days_threshold_weak, hot_days_threshold_moderate, hot_days_threshold_strong,
+                            cold_days_threshold_weak, cold_days_threshold_moderate, cold_days_threshold_strong,
+                            GDD_threshold))
+# 4.7 Set the repetition number for the ML model runs and output class
+ML_rep = 10
+target_output_class = 6
+# 4.8 Iterate over each combination tuple to test the RF model fitting score and number of relevant features under each combination
 for thresh_tuple_index, thresh_tuple in enumerate(thresh_combo):
     timer = Timer()
     timer.start()
     print('  %Status: Begin to process the iteration loop: ' + str(thresh_tuple_index+1) + " out of total: {}".format(str(len(thresh_combo))) + '#############################################################################')
     # Assign the threshold values for each climate index component
-    hot_days_thresh = thresh_tuple[0]
-    cold_days_thresh = thresh_tuple[1]
-    GDD_thresh =  thresh_tuple[2]
+    hot_days_thresh_weak = thresh_tuple[0]
+    hot_days_thresh_moderate = thresh_tuple[1]
+    hot_days_thresh_strong = thresh_tuple[2]
+    cold_days_thresh_weak = thresh_tuple[3]
+    cold_days_thresh_moderate  = thresh_tuple[4]
+    cold_days_thresh_strong = thresh_tuple[5]
+    GDD_thresh =  thresh_tuple[6]
     # Create a str representing the current threshold combination
-    combo_name = "HD{0}:CD{1}:GDD{2}".format(str(int(hot_days_thresh)), str(int(cold_days_thresh)), str(int(GDD_thresh)) )
+    combo_name = "HD_weak{0}:HD_moderate{1}:HD_moderate{2}:CD_weak{3}:CD_weak{4}:CD_weak{5}:GDD{6}".format(str(int(hot_days_thresh_weak)), str(int(hot_days_thresh_moderate)), str(int(hot_days_thresh_strong)), 
+                                                                                                           str(int(cold_days_thresh_weak)), str(int(cold_days_thresh_moderate)), str(int(cold_days_thresh_strong)), 
+                                                                                                           str(int(GDD_thresh)))
     # Iterate over each target grid point
     for index_point, target_point in enumerate(target_points):
         timer = Timer()
@@ -1573,50 +1750,57 @@ for thresh_tuple_index, thresh_tuple in enumerate(thresh_combo):
             Bug_dict.update({"lon"+str(lon1)+"_lat"+str(lat1):'Issues in simulated values with observed weather!'}) # catch the erroneous simulation values
         # Compute the ML dataframe that is used to train the Random Forest model
         ML_df = Derive_ML_FitData(T_min, T_max, budburst_sm_ob,
-                                hot_day_threshold = hot_days_thresh, cold_day_threshold = cold_days_thresh, GDD_threshold = GDD_thresh )
+                                hot_day_threshold_weak = hot_days_thresh_weak, hot_day_threshold_moderate = hot_days_thresh_moderate, hot_day_threshold_strong = hot_days_thresh_strong,
+                                cold_day_threshold_weak = cold_days_thresh_weak, cold_day_threshold_moderate = cold_days_thresh_moderate, cold_day_threshold_strong = cold_days_thresh_strong,
+                                GDD_threshold = GDD_thresh, monthly_HD_CD= True,strong=True,moderate=False,weak=False)
         # Only select desired columns
         ML_df = ML_df.loc[:, np.logical_or(ML_df.columns.isin(features_names), ML_df.columns ==ML_df.columns[-1])]
         # Get a list of column names indicative for the month
-        #Month_col_names = [col_name for col_name in ML_df.columns if any(month in col_name for month in month_list)]
+        # Month_col_names = [col_name for col_name in ML_df.columns if any(month in col_name for month in month_list)]
         # Get a subset of ML_df 
-       #ML_df = ML_df.loc[:, ~ML_df.columns.isin(Month_col_names)]
+        # ML_df = ML_df.loc[:, ~ML_df.columns.isin(Month_col_names)]
         # Convert the categorical variables into the dummy/indicative variables
-        #ML_df_08_dummy = pd.get_dummies(ML_df_08, columns=ML_df_08.columns, prefix_sep="_percentile")
+        # ML_df_08_dummy = pd.get_dummies(ML_df_08, columns=ML_df_08.columns, prefix_sep="_percentile")
         ## Fitting the RF model and compute the score based on the testing datasets
         # Define the feature inputs to be used to train the model
         features_input = ML_df.drop(columns = [ML_df.columns[-1]])
         # Target variable to predict
         target_feature = ML_df[ML_df.columns[-1]]
         # Split the data into training and testing sets
-        X_train, X_test, Y_train, Y_test = train_test_split(features_input, target_feature, test_size = 0.2, random_state = 42) # The random state is set to 42, which means the results will be the same each time I run the split for reproducible results.
-        # Instantiate the random forest (RF) model with reproducible model fitting
-        rf = RandomForestClassifier(n_estimators=300, random_state = 42).fit(X_train,Y_train) # Always test with 200 decision trees
-        predictions = rf.predict(X_test) # Make the predictions using fitted RF model and testing dataset
-        CM  = confusion_matrix(Y_test, predictions) # Get the confusion matrix from the prediction results
-        CM_correct = np.nansum(np.diagonal(CM).copy()) # Get the correct number of classifications from RF on the testing dataset
-        model_score = CM_correct/len(Y_test) # Get the testing score desired 
-        #model_score = rf.score(X_test, Y_test) # Compute the average accuracy based on the testing dataset
-        # Save the computation score to the output data array  
+        CM_list = [] # Sum and normalize the final the CM list
+        target_feature_list = [] # Sum each target feature and append into the list
+        for _ in range(ML_rep): # Do 6 repetitive train_test_split
+            X_train, X_test, Y_train, Y_test = train_test_split(features_input, target_feature, test_size = 0.2, random_state = _) # random_state = 42# The random state is set to 42, which means the results will be the same each time I run the split for reproducible results.
+            # Instantiate the random forest (RF) model with reproducible model fitting
+            rf = RandomForestClassifier(n_estimators=300, random_state = _, bootstrap=False).fit(X_train, Y_train) # Always test with 200 decision trees
+            predictions = rf.predict(X_test) # Make the predictions using fitted RF model and testing dataset
+            CM  = confusion_matrix(Y_test, predictions, labels=np.arange(1,target_output_class+1)) # Get the confusion matrix from the prediction results
+            CM_list.append(CM) # Append the CM into the target CM list 
+            # Select relevant features that are retained
+            sel_model = SelectFromModel(rf, prefit=True)
+            sel_feat_identifiers = np.arange(0, len(X_train.columns),1)[sel_model.get_support()] # The feature identifers are 0-based numbers. sel.get_support() return an array of bool to select feature with True value
+            retained_features_list = [] # Create an empty list to store target feature identifiers        
+            if len(sel_feat_identifiers) != 0: # If empty, the retained_features_list will keep empty
+                for sel_id in list(sel_feat_identifiers):
+                    retained_features_list.append(sel_id) # Append selected feature identifier to the target list
+            target_features = np.empty(len(features_input.columns))
+            target_features[:] =np.nan
+            if len(retained_features_list)!=0:# If the list is not empty
+                for retained_feature in retained_features_list:
+                    target_features[retained_feature] = retained_feature # Taking advantage of the fact, the feature identifiers is 0-based (0,1,2,3,4)
+            target_feature_list.append(target_features)
+        # CM_correct = np.nansum(np.diagonal(CM).copy()) # Get the correct number of classifications from RF on the testing dataset
+        # Sum all CM and normalize the sumed CM
+        CM_sum = np.nansum(CM_list, axis=0) # Compute the CM_sum array
+        CM_final = normalize_CMarray(CM_sum) # Normalize the CM row-by-row
+        model_score = np.nanmean(np.diagonal(CM_final))
+        # Save the computation score to the output data array 
         ML_output_scores.loc[point] = model_score
-        ## Feature selection for the RF model
-        # Construct the feature selectors for Random Forest
-        sel = SelectFromModel(RandomForestClassifier(n_estimators = 300, random_state = 42)).fit(X_train, Y_train) # Get reproducible results when setting the random state to 42
-        # Get the retained feature identifiers
-        #selected_feat= X_train.columns[(sel.get_support())] # get the feature names
-        sel_feat_identifiers = np.arange(0, len(X_train.columns),1)[sel.get_support()] # The feature identifers are 0-based numbers. sel.get_support() return an array of bool to select feature with True value
-        retained_features_list = [] # Create an empty list to store target feature identifiers        
-        if len(sel_feat_identifiers) != 0: # If empty, the retained_features_list will keep empty
-            for sel_id in list(sel_feat_identifiers):
-                retained_features_list.append(sel_id) # Append selected feature identifier to the target list
         # Save the selected feature results to the output data array
         point["features"]= list(range(len(features_input.columns)))
-        target_features = np.empty(len(features_input.columns))
-        target_features[:] =np.nan
-        if len(retained_features_list)!=0:# If the list is not empty
-            for retained_feature in retained_features_list:
-                target_features[retained_feature] = retained_feature # Taking advantage of the fact, the feature identifiers is 0-based (0,1,2,3,4)
+        retained_features = count_array_freq(target_feature_list)
         # Save the target feature into the xarray object
-        ML_output_sm_ob_features.loc[point] = target_features
+        ML_output_sm_ob_features.loc[point] = retained_features
         #importances = list(rf.feature_importances_)
         #     # Get numerical feature importances
         # importances = list(rf.feature_importances_)# List of tuples with variable and importance
@@ -1641,10 +1825,12 @@ for thresh_tuple_index, thresh_tuple in enumerate(thresh_combo):
         timer.end()
     # Save the data array objects into local disk files
     combo_name_modify = combo_name.replace(":", "_")
+    # Save the dataset into local disk
     ML_output_scores_da = ML_output_scores.to_dataset(name = "RF_score_{}".format(combo_name_modify))
     ML_output_sm_ob_features_da = ML_output_sm_ob_features.to_dataset(name = "RF_features_{}".format(combo_name_modify))
     for xarray_da in [ML_output_scores_da, ML_output_sm_ob_features_da]:
         ML_output_name = list(xarray_da.data_vars)[0]
+        xarray_da = write_CF_attrs(xarray_da) # Wite the CF convention to the datasets
         xarray_da.to_netcdf(join(output_nc, "{}.nc".format(ML_output_name)), mode='w', format="NETCDF4", engine="netcdf4")
     # Compute the summary stat for each threshold combination
     ML_score_70P = float(ML_output_scores.where(ML_output_scores>=0.7, drop=True).count()) # Count number of gird points where model score is equal to or greater than 0.7
