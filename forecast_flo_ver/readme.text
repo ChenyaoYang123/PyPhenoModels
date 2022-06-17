@@ -1,0 +1,5 @@
+The folder stores all developed scripts for the seasonal forecast study as follow:
+1. fc_Flo_Ver_func.py that store all self-defined functions.
+2. fc_Flo_Ver_calibration_plots.py that is the script for calibration of model phenology
+3. fc_Flo_Ver_main.py that is the main script to perform the simulation. 
+4. fc_Flo_Ver_plots.py that contains all codes for the figure plot and result analysis. 
