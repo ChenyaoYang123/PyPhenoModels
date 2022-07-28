@@ -760,15 +760,27 @@ def categorize_variable(x, ser):
         x = 6
     return x
 ###############################################################################################################################################################################################################
-def tercile_var(x, ser):
+def tercile_var(x, ser, ref_categorize=False, **kwargs):
     """
     Transform the continuous variables into a category variable by computing its tercile group overy a timeseries. Intended to be used in series.apply() function
+    x: the element of ser, intends to be used in ser.apply() function
+    ser: series, the input series that contain actual values of a variable, e.g. DOY for phenology
+    ref_categorize: bool, if use reference data to convert the continuous variable into a categorical variable
+    kwargs: any additionaly keyword arguments
     """
-    if x <= ser.quantile(q=0.33):
+    if not ref_categorize:
+        # Categorize the data based on the input data itself
+        Q1 = ser.quantile(q=0.33) 
+        Q2= ser.quantile(q=0.67)
+    else:
+        assert ("Q1" in kwargs.keys()) and ("Q2" in kwargs.keys()), "Need to manually supply Q1 and Q2 parameters"
+        Q1, Q2  = kwargs["Q1"], kwargs["Q2"] # Access the underlying Q1 and Q2 parameter values
+    
+    if x <= Q1:
         x = 1 # Value lower than the Quantile 33%, being assigned a value of 1
-    elif (ser.quantile(q=0.33)< x) &  ( x <= ser.quantile(q=0.67)):
+    elif (Q1< x) &  ( x <= Q2):
         x = 2  # Value lower than the Quantile 67%, but higher than 33%, being assigned a value of2
-    elif ser.quantile(q=0.67)< x:
+    elif Q2 < x:
         x = 3 # Value higher than the Quantile 67%, assign the value of 3
     else:
         x = np.nan # Assign nan values in case none of above situation matches
@@ -1415,7 +1427,10 @@ def subset_dataset(xarray_data, lon_target_vector, lat_target_vector, study_peri
          
     return xarray_data_subset_region_time
 ###############################################################################################################################################################################################################
-def add_gdf_labels(axe_input, feature_input, col_name="DOC_ID", digits=2, textcrs="offset points", xytext_position = (-0.5,-0.5), fontsize=1, fontstyle= 'italic', fontweight="bold", fontcolor="blue"):
+def add_gdf_labels(axe_input, feature_input, col_name="DOC_ID", digits=2, 
+                   textcrs="offset points", xytext_position = (-0.5,-0.5), 
+                   fontsize=1, fontstyle= 'italic', fontweight="bold", fontcolor="blue", 
+                   map_proj_CRS = ccrs.PlateCarree() ): # Define the projection type
     """
     Add the text labels onto the shape features, mainly based on geodataframe utility
     
@@ -1431,6 +1446,7 @@ def add_gdf_labels(axe_input, feature_input, col_name="DOC_ID", digits=2, textcr
     fontstyle: str, the font style to apply 
     """
     assert isinstance(feature_input, gpd.geodataframe.GeoDataFrame), "the input feature input is not an instance of geodataframe, but the format of {} is found".format(type(feature_input))
+    feature_input = feature_input.to_crs(map_proj_CRS)
     for feature_entry in feature_input[col_name]:
         feature_entry_shp = feature_input.loc[feature_input[col_name]==feature_entry,:]
         centroid_point = feature_entry_shp.centroid # Compute the centroid point of the analyzed polygon feature
@@ -1602,7 +1618,7 @@ def compute_fairRPS(ref, fc, fc_time_step,
                     k_categories = 3, M=25, full_series=False):
     """
     Compute the fair ranked probability skill scores between reference series and an ensemble probability forecast/predictions
-    
+    This function can not be implemented !! Problems exist
     Mandatory Parameters
     ---------- 
     ref: array/series, the reference series to be compared with by the ensemble forecast
@@ -1627,7 +1643,7 @@ def compute_fairRPS(ref, fc, fc_time_step,
     # Step 3. Convert the continuous variables into the tercile group variables
     ref_tercile = ref_func.apply(tercile_var, args=(ref_func,) ) # Obtain the reference tercile series   
     for col_name, col_ser in fc_func.items(): # Iterate over each column of fc df to get the desired df values
-        fc_func[col_name] = col_ser.apply(tercile_var, args=(col_ser,) ) 
+        fc_func[col_name] = col_ser.apply(tercile_var, args=(col_ser,True), Q1=ref_func.quantile(q=0.33),Q2=ref_func.quantile(q=0.67) ) 
     fc_tercile = fc_func.copy(deep=True) # Obtain the tercile series for all forecast members
     # Step 4. Compute FairRPS for each of the forecast-event pair
     fairRPS_dict = {} # Create an empty list to store the score value per time step
@@ -1661,6 +1677,72 @@ def compute_fairRPS(ref, fc, fc_time_step,
         return (fairRPS_ser, fairRPS_final) # Return, beyong the final score, the series values of fairRPS
     else:
         return fairRPS_final
+###############################################################################################################################################################################################################
+def GSS(input_data_df, target_category_event, fc_thresh, ref_index_name = "ob", score_type = "ETS"):
+    """
+    Compute the Gilbert Skill Score (GSS) or called Equitable Threat Score (ETS) to measure how well did the forecast "yes" events 
+    correspond to the observed "yes" events (accounting for hits due to chance).
+    
+    Reference1: https://cawcr.gov.au/projects/verification/ 
+    Reference2: https://www.nature.com/articles/s41598-018-19586-6#Sec4
+    
+    Mandatory Parameters
+    ---------- 
+    input_data_df: df, the input dataframe with index being the time stamps, first column being reference records of categorical events, the rest columns being the forecast records of categorical events for all ensemble members
+    target_category_event: int, the integer representation of a given categorical event. For example, 1/2/3 correspond to early/normal/late categorical event
+    fc_thresh: float, a percentage that represents the threshold beyond which the forecast event is considered to occur
+    ref_index_name: str, the column name of input_data_df that denotes the reference categorical events (first column)
+    score_type: str, the type of GSS score that is computed. Two options are available, TS or ETS. The two scores are essentially the same, despite TS is not adjusted for random chance.
+    """
+
+    # Check the input data that meet the requirement
+    assert isinstance(input_data_df, pd.core.frame.DataFrame), "current implementation only supports the input type of panda data frame, but the {} type is found".format(type(input_data_df))
+    # Access the total study time stamps from the input dataframes. The GSS is computed along the studied time stamps, in other words, forecast events are performance along the time stamps
+    study_time_stamps = input_data_df.index
+    # Define the essential terms for the GSS, i.e. starting with 0 for each essential term that compose the GSS
+    hit = 0
+    miss = 0
+    correct_negative = 0
+    false_alarm = 0
+    for study_time_stamp in study_time_stamps:
+        # Access the yearly series content
+        row_ser = input_data_df.loc[study_time_stamp,:]
+        # Obtain the reference category event
+        ref_category = row_ser.loc[row_ser.index.to_series().str.contains(ref_index_name, regex=False)]
+        # Deteremine if the reference event is considered occurring according to the studied catgorical event
+        if int(ref_category) == target_category_event:
+            ref_event = "Yes"
+        else:
+            ref_event = "No"
+        # Obtain the forecast series of category events over all ensemble members
+        fc_events = row_ser.loc[~row_ser.index.isin([ref_category.index])]
+        # Deterimne if the forecast event is considered to occur according to the results of all forecast ensemble members, as well as the threshold defined for the occurrence
+        if (sum(fc_events == target_category_event)/len(fc_events)) > fc_thresh: # Fraction of ensemble members that exceed the defined threshold, which assumed to occur
+            fc_event = "Yes"
+        else:
+            fc_event = "No"
+        # Update the hit, miss and false alarm
+        if fc_event == "Yes": # If the forecasy event is about to occur
+            if ref_event == "Yes": # Event forecast to occur, and did occur. Hit plus 1 
+                hit+=1
+            elif ref_event == "No": # Event forecast to occur, but did not occur. false_alarm plus 1 
+                false_alarm+=1
+        elif fc_event == "No": # If the forecasy event is about not to occur
+            if ref_event == "Yes": # Event forecast not to occur, but did occur. miss plus 1
+                miss+=1
+            elif ref_event == "No": # Event forecast not to occur, and it did not occur. correct_negative plus 1
+                correct_negative+=1
+    if score_type == "ETS":
+        # Compute the expected fraction of hits for a random forecast
+        hit_random = ( (hit + miss) * (hit + false_alarm) )/ (hit+ miss+ correct_negative+false_alarm)
+        # Finally, based on the term obtained, compute the GSS score for a given categorical event over all forecast years for this grid point
+        if  hit + miss + false_alarm - hit_random ==0:
+            GSS_point = np.nan
+        else:
+            GSS_point = (hit - hit_random)/ (hit + miss + false_alarm - hit_random)
+    elif score_type == "TS":
+        GSS_point = hit / (hit + miss + false_alarm)
+    return GSS_point
 #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 def kdf_plot(subplot_axe, x, kde_5th, kde_median, kde_95th, color, 
              linewidth=0.8, linestyle='-', fill_linewidth=0.5, fill_color=None, alpha=0.5, fill_regions=True, prob_area=False):

@@ -206,11 +206,14 @@ for plot_type in plot_types:
                     target_lon.append(round(grid_point.x, decimal_place)) # Append the target longitude 
                     target_lat.append(round(grid_point.y, decimal_place)) # Append the target latitude
                     target_points.append(grid_point)
+            # Convert the list into the data array object to ensure the vectorized indexing
+            target_lon = xr.DataArray(target_lon, dims=["new_dim"])
+            target_lat = xr.DataArray(target_lat, dims=["new_dim"])
             # Print number of grid points that fall within the study shape geometry (wine region)
             print("The DOC ID {} has total {} points".format(str(index+1), str(len(target_points))))
             # Select target grid points for each shape geometry and then compute the spatial average over times      
-            GDD_ob_DOC_mean = ob_gdd_xr_arr.sel({lon_name:target_lon,lat_name:target_lat}, method="nearest").mean(dim=[lon_name,lat_name], skipna=True, keep_attrs= True)
-            GDD_fc_DOC_mean = fc_gdd_xr_arr.sel({lon_name:target_lon,lat_name:target_lat}, method="nearest").mean(dim=[lon_name,lat_name], skipna=True, keep_attrs= True)
+            GDD_ob_DOC_mean = ob_gdd_xr_arr.sel({lon_name:target_lon,lat_name:target_lat}, method="nearest").mean(dim=["new_dim"], skipna=True, keep_attrs= True)
+            GDD_fc_DOC_mean = fc_gdd_xr_arr.sel({lon_name:target_lon,lat_name:target_lat}, method="nearest").mean(dim=["new_dim"], skipna=True, keep_attrs= True)
             # Obtain the seasonal date information for the observed and forecast datasets
             GDD_ob_DOC_date = pd.to_datetime(GDD_ob_DOC_mean.time.data).strftime('%m-%d')
             GDD_fc_DOC_date = pd.to_datetime(GDD_fc_DOC_mean.time.data).strftime('%m-%d')
@@ -228,6 +231,9 @@ for plot_type in plot_types:
             GDD_fc_DOC_5th = GDD_fc_DOC_mean_groupby.quantile(0.05, skipna=True, keep_attrs= True)[:-1] # Note it is essential to remove the last value, since the days are not even with leap years
             GDD_fc_DOC_median = GDD_fc_DOC_mean_groupby.quantile(0.5, skipna=True, keep_attrs= True)[:-1]
             GDD_fc_DOC_95th = GDD_fc_DOC_mean_groupby.quantile(0.95, skipna=True, keep_attrs= True)[:-1]
+            # Compute the maximum cumulative values each year based on the median series
+            GDD_ob_DOC_yearly_max = GDD_ob_DOC_mean.resample(time="A", skipna=True).max().copy(deep=True)
+            GDD_fc_DOC_yearly_max = GDD_fc_DOC_mean.resample(time="A", skipna=True).max().copy(deep=True)
             # For the plot type of absolute values of GDD:
             if plot_type == "GDD_abs":
                 # Obtain the x-axis datetime information for the plot
@@ -267,19 +273,19 @@ for plot_type in plot_types:
                 corr, corr_p = pearsonr(GDD_ob_DOC_mean.data, GDD_fc_DOC_mean.data)
                 R2 = round(corr**2, 2) # Express the value as 2 decimal digit floating number
                 # Second metric: MAE, the mean absolute errors
-                MAE = mean_absolute_error(GDD_ob_DOC_mean.data, GDD_fc_DOC_mean.data)
+                MAE = mean_absolute_error(GDD_ob_DOC_yearly_max.data, GDD_fc_DOC_yearly_max.data)
                 MAE = round(MAE) # Express the value as integer
                 # Third metric: RMSE, the root mean squared errors
-                RMSE = np.sqrt(mean_squared_error(GDD_ob_DOC_mean.data, GDD_fc_DOC_mean.data))
+                RMSE = np.sqrt(mean_squared_error(GDD_ob_DOC_yearly_max.data, GDD_fc_DOC_yearly_max.data))
                 RMSE = round(RMSE) # Express the value as integer
                 # Fourth metric: nRMSE, the normalized root mean squared errors
-                nRMSE = RMSE / (max(GDD_ob_DOC_mean.data)-min(GDD_ob_DOC_mean.data)) # The nRMSE is to weigh the RMSE over the range (max- min) of data
-                nRMSE = round(nRMSE*100, 1) # Express the value as 1 decimal digit floating number
+                MBE = np.nanmean(GDD_fc_DOC_yearly_max.data)- np.nanmean(GDD_ob_DOC_yearly_max.data)  #  / (max(GDD_ob_DOC_mean.data)-min(GDD_ob_DOC_mean.data)) # The nRMSE is to weigh the RMSE over the range (max- min) of data
+                #nRMSE = round(nRMSE*100, 1) # Express the value as 1 decimal digit floating number
                 # Label the above computed statistical values
                 subplot_axe.text(0.82, 0.2, "R2={}".format(str(R2)), fontsize=5, style="italic", color='black', horizontalalignment='center', transform = subplot_axe.transAxes)
-                subplot_axe.text(0.82, 0.15,"MAE={}".format(str(MAE)), fontsize=5, style="italic", color='black', horizontalalignment='center', transform = subplot_axe.transAxes)
-                subplot_axe.text(0.8, 0.1, "RMSE={}".format(str(RMSE)), fontsize=5, style="italic", color='black', horizontalalignment='center', transform = subplot_axe.transAxes)
-                subplot_axe.text(0.8, 0.05,"nRMSE={}%".format(str(nRMSE)), fontsize=5, style="italic", color='black', horizontalalignment='center', transform = subplot_axe.transAxes)
+                subplot_axe.text(0.82, 0.15,"MBE={}".format(str(round(MBE))), fontsize=5, style="italic", color='black', horizontalalignment='center', transform = subplot_axe.transAxes)
+                subplot_axe.text(0.8, 0.1, "MAE={}".format(str(MAE)), fontsize=5, style="italic", color='black', horizontalalignment='center', transform = subplot_axe.transAxes)
+                subplot_axe.text(0.8, 0.05,"RMSE={}".format(str(RMSE)), fontsize=5, style="italic", color='black', horizontalalignment='center', transform = subplot_axe.transAxes)
                 # Perform the two-sample Kolmogorov-Smirnov test for the goodness of fit between two sample distributions 
                 ks_statistics, p_value = ks_2samp(GDD_ob_DOC_mean, GDD_fc_DOC_mean, alternative='two-sided', mode= "auto")
                 # Statistic significant analysis
@@ -397,7 +403,7 @@ for plot_type in plot_types:
         # Get the forecast initialization month str
         fc_init_month = calendar.month_abbr[int("".join(re.findall(r"\d?",var_name)))] 
         # Save the plot into local disk as a file with specified format per plot type, variety-stage, initialization month
-        fig.savefig(join(output_path, "out_flo_ver", GDD_save,"{0}_{1}_{2}.pdf".format(str(plot_type), str(output_varname), str(fc_init_month))), dpi=600, bbox_inches="tight")
+        fig.savefig(join(output_path, "out_flo_ver", GDD_save,"{0}_{1}_{2}_final.png".format(str(plot_type), str(output_varname), str(fc_init_month))), dpi=600, bbox_inches="tight")
 #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 # 4 Plot for the year-to-year flowering and veraison DOY for two different varieties
 # 4.1 Check all supported cmaps in mathplotlib
@@ -456,7 +462,7 @@ for study_var in study_vars:
                         label_features = True, label_features_font_size=1)
 #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 # 5 Plot for the forecast skill scores (r, MAE and RMSE)
-## !!! Note the plot is per variety specific
+## Note the plot is per variety specific
 # 5.1 Define some essential input path and a list of computed stat metrics
 study_var = "TN" # Define the name abb for the studied variety.
 output_path = join(root_path,"output") # Define the output path
@@ -548,7 +554,7 @@ fc_names_dict = {"2sm": "Feb_1st",
                  "3sm": "Mar_1st",
                  "4sm": "Apr_1st"}
 var_data = {"TF":{"OB":TF_OB_nc, "SM":TF_SM_nc},
-            "TN":{"OB":TN_OB_nc, "SM":TN_SM_nc},
+            "TN":{"OB":TN_OB_nc, "SM":TN_SM_nc}
             }
 #xr.apply_ufunc(tercile_var_xr, var_OB_nc_xr_arr) #input_core_dims =[["time"]])# input_core_dims =[["time"]])
 decimal_place = 1
@@ -681,15 +687,138 @@ for variety_name in var_data.keys():
                 BS_score_dict[variety_name + "_" + var_name][str(fc_init_month) + "_" + "BS1"] = BS_template_tercile1.copy(deep=True)
                 BS_score_dict[variety_name + "_" + var_name][str(fc_init_month) + "_" + "BS2"] = BS_template_tercile2.copy(deep=True)
                 BS_score_dict[variety_name + "_" + var_name][str(fc_init_month) + "_" + "BS3"] = BS_template_tercile3.copy(deep=True)
-# 6.5 Analyze the results and make the spatial map plots
-# 6.5.1 Define essential input for the spatial map plot
+# 6.5 Gilber Skill Score (GSS) computations
+# Create an Gilber Skill Score dictionary to store the results with different forecat even occurrence threshold
+GSS_score_dict = {"0.5":{},  # The 0.5 represents the fraction of ensemble memenbers that forecast a given categorical event to occur
+                  "0.6":{}, 
+                  "0.7":{}} 
+# 6.5.1 Iterate over each variety and stage combination to compute the GSS
+for variety_name in var_data.keys():
+    var_data_dict = var_data[variety_name]
+    # Obtain the underlying variety nc files
+    var_OB_nc_list = var_data_dict["OB"]
+    var_SM_nc_list = var_data_dict["SM"]
+    for var_OB_nc in var_OB_nc_list: # The top level iteration should start with observations
+        # Load the .nc file into xarray dataset object
+        var_OB_nc_xr = xr.open_dataset(var_OB_nc, mask_and_scale=True, engine = "netcdf4", decode_times =True)
+        # List the embedded variables within the dataset
+        data_var_list = list(var_OB_nc_xr.data_vars)
+        # Obtain the underlying variable name from the dataset
+        OB_var_name = [data_var_name for data_var_name in data_var_list if ("_flo" in data_var_name) or ("_ver" in data_var_name)][0] # Unpack the list
+        # Obtain the studied variable name
+        var_name = "flo" if "_flo" in OB_var_name else "ver" 
+        # Access the underlying xarray dataarray object
+        var_OB_arr = var_OB_nc_xr[OB_var_name]
+        # Get the lon and lat names from the xarray object
+        lon_name, lat_name = get_latlon_names(var_OB_arr)
+        # Get the tercile grouped array
+        var_OB_arr_terciles = categorize_array(var_OB_arr)
+        # Obtain the lon and lat vectors from the supplied OB data array    
+        lon_target_vector = np.unique([round(lon_val, decimal_place) for lon_val in var_OB_arr.coords[lon_name].data ]) # A unique list of longitude
+        lat_target_vector = np.unique([round(lat_val, decimal_place) for lat_val in var_OB_arr.coords[lat_name].data ]) # A unique list of latitude
+        coords_xarray = [ (lat_name, lat_target_vector), (lon_name, lon_target_vector)] # Create the coordinate dimensions ("time",time_vector)
+        # Create the template xarray object to save results 
+        GSS_template = xr.DataArray(coords=coords_xarray)
+        print("Start working on the variety {} for the {} stage".format(variety_name, var_name))
+        # Create the current dict key for the dict GSS_score
+        for key in GSS_score_dict.keys():
+            if variety_name + "_" + var_name not in GSS_score_dict[key].keys():
+                GSS_score_dict[key][variety_name + "_" + var_name] = {}
+        for var_SM_nc in var_SM_nc_list: # With observations read in place, forecast datasets initialized in different dates will be applied
+            if "5sm" in var_SM_nc: # Skip the forecast dataset that is initialized on May 1st
+                continue
+            # Load the forecast dataset into the xarray obejct
+            var_SM_nc_xr = xr.open_dataset(var_SM_nc, mask_and_scale=True, engine = "netcdf4", decode_times =True)
+            if any(var_name in data_var_name for data_var_name in list(var_SM_nc_xr.data_vars)): # Only iterate through the forecast simulation files that share the same variable name as those of observationss
+                SM_var_name = [data_var_name for data_var_name in list(var_SM_nc_xr.data_vars) if var_name in data_var_name][0] # Unpack the list
+                # Accees the forecast initialization month for the current variety and stage combination
+                fc_init_month = calendar.month_abbr[int("".join(re.findall(r"\d?",SM_var_name)))]
+                print("Under the reference data for {0} of {1} stage, the {1} stage forecast begins at the forecast initiliazation {2}".format(variety_name, var_name, fc_init_month))
+                # Start counting time
+                timer = Timer()
+                timer.start()
+                # Access the underlying xarray dataarray object for forecast dataset
+                var_SM_arr = var_SM_nc_xr[SM_var_name]
+                var_SM_arr_terciles = var_SM_arr.copy(deep=True)
+                # # Copy the template xarray object into target output xarray object
+                # GSS_early_xr =  GSS_template.copy(deep=True)
+                # GSS_normal_xr = GSS_template.copy(deep=True)
+                # GSS_late_xr = GSS_template.copy(deep=True)
+                # Attach the template xarry objects into an empty dict
+                GSS_tercile_xr_dict = {}
+                for fc_thresh_occurrence in ["0.5", "0.6", "0.7"]:
+                    if fc_thresh_occurrence not in GSS_tercile_xr_dict.keys():
+                        GSS_tercile_xr_dict[fc_thresh_occurrence] = {}
+                    GSS_tercile_xr_dict[fc_thresh_occurrence]["early"] = GSS_template.copy(deep=True)
+                    GSS_tercile_xr_dict[fc_thresh_occurrence]["normal"] = GSS_template.copy(deep=True)
+                    GSS_tercile_xr_dict[fc_thresh_occurrence]["late"] = GSS_template.copy(deep=True)
+                # Iterate over each ensemble member
+                for ens_member in var_SM_arr.coords["number"].data:
+                    # Obtain the data for each ensemble member
+                    var_SM_arr_ens = var_SM_arr.sel({"number":ens_member}, method="nearest")
+                    var_SM_arr_ens_terciles  = categorize_array(var_SM_arr_ens, reference_tercile =True, ref_arr = var_OB_arr) # Categorize the data into tercile groups
+                    # Replace each slice of array with tercile grouped values 
+                    var_SM_arr_terciles.loc[{"number":ens_member}] =  var_SM_arr_ens_terciles
+                # Iterate over each grid point to compute the GSS
+                # Compute the lon and lat vectors 
+                lon_vector = var_OB_arr_terciles[lon_name].data if np.array_equal(var_OB_arr_terciles[lon_name], var_SM_arr_terciles[lon_name], equal_nan=True) else np.nan
+                lat_vector = var_OB_arr_terciles[lat_name].data if np.array_equal(var_OB_arr_terciles[lat_name], var_SM_arr_terciles[lat_name], equal_nan=True) else np.nan
+                # Form the list of coordinates to be studied
+                coordinates = list(product(lon_vector, lat_vector)) 
+                # Iterete over all coordinate grid points to extract the point timeseries values
+                for coordinate in coordinates:
+                    # Get the coordinate longitude and latitude
+                    lon1 = round(coordinate[0], 1) # Round to 1 decimal digit
+                    lat1 = round(coordinate[1], 1) # Round to 1 decimal digit
+                    # Extract the observational value series, i.e. a series of observed categorical events over years
+                    ob_data_ser = var_OB_arr_terciles.sel({lon_name:lon1, lat_name:lat1}, method="nearest").to_series() # A value that represent a phenology class
+                    # Extract the ensemble forecast member data at the same point as that of observation
+                    # Iterate over each ensemble member
+                    fc_data_ser_list = [] # Attach the forecast data series into the empty list  
+                    for ens_member in var_SM_arr_terciles.coords["number"].data:
+                        fc_data_ser = var_SM_arr_terciles.sel({lon_name:lon1, lat_name:lat1, "number":ens_member}, method="nearest").to_series() # A series of phenology class forecast by each ensemble member
+                        fc_data_ser.name = "ens_" + str(ens_member+1)
+                        fc_data_ser_list.append(fc_data_ser)
+                    # Concate the list into a df
+                    target_data_df = pd.concat([ob_data_ser] +fc_data_ser_list, axis=1, join="inner",ignore_index=False)
+                    # Replace any values that equal to -999 into nan
+                    if any(np.array(target_data_df).flat == -999):
+                    #     target_data_df[target_data_df==-999] = np.nan # Equal any values at -999 to np.nan
+                        target_data_df.where(target_data_df!=-999, np.nan, inplace=True) # Equal any values at -999 to np.nan
+                    # Skip the point with all data values of NaN 
+                    if all(np.array(target_data_df.isnull()).ravel()):
+                        continue
+                    # Note the debug symbol to select line cells to perform debug cell as #%%
+                    # Compute the GSS for early/normal/late separately. Note the forecast event threshold is defined as 50%, but it can be 60% and 70% and more
+                    for fc_thresh in list(np.arange(0.5, 0.7+0.1,0.1)): # For each of the target forecast event threshold, the GSS is differently computed for early/normal/later tecile
+                        GSS_early = GSS(target_data_df, 1, fc_thresh) # For early tercile
+                        GSS_normal = GSS(target_data_df, 2, fc_thresh) # For normal tercile
+                        GSS_late = GSS(target_data_df, 3, fc_thresh) # For late tercile
+                    # Note the debug symbol to select line cells to perform debug cell as #%%
+                        # Assign the computed GSS into the taget point
+                        GSS_tercile_xr_dict[str(fc_thresh)]["early"].loc[{lat_name:lat1, lon_name:lon1}] = float(GSS_early) 
+                        GSS_tercile_xr_dict[str(fc_thresh)]["normal"].loc[{lat_name:lat1, lon_name:lon1}] = float(GSS_normal) 
+                        GSS_tercile_xr_dict[str(fc_thresh)]["late"].loc[{lat_name:lat1, lon_name:lon1}] = float(GSS_late)
+                # Attach the computed GSS results into the target dict
+                for key in GSS_score_dict.keys(): # Key is the forecast categorical event threshold
+                    # Attach the GSS score results into target dict
+                    GSS_score_dict[key][variety_name + "_" + var_name][str(fc_init_month) + "_" + "GSS1"] =  GSS_tercile_xr_dict[str(key)]["early"].copy(deep=True)
+                    GSS_score_dict[key][variety_name + "_" + var_name][str(fc_init_month) + "_" + "GSS2"] =  GSS_tercile_xr_dict[str(key)]["normal"].copy(deep=True)
+                    GSS_score_dict[key][variety_name + "_" + var_name][str(fc_init_month) + "_" + "GSS3"] = GSS_tercile_xr_dict[str(key)]["late"].copy(deep=True)
+                print("Under the reference data for {0} of {1} stage, the {1} stage forecast finishes at the forecast initiliazation {2}".format(variety_name, var_name, fc_init_month))
+                timer.end()
+        # Print the current loop iteration 
+        print("Finish working on the variety {} for the {} stage".format(variety_name, var_name))
+        timer.end()
+# 6.6 Analyze the results and make the spatial map plots
+# 6.6.1 Define essential input for the spatial map plot
 BS_save_path = join(root_path,"output", "out_flo_ver", "plots", "BS_scores") # Define the output path
 mkdir(BS_save_path) # Make the directory if not exist
 cmap = discrete_cmap(5, base_cmap="summer_r") # Set the cmap to apply
 cmap_bounds = np.linspace(0, 1, cmap.N+1) # Set the cmap bound to apply
 map_proj = ccrs.PlateCarree() # Define the projection type
 subplot_names = ["median", "90% range"] # Create a list of subplot names used for aggregated ploting
-# 6.5.2 Get the maximum number of subplots from all associated data array
+# 6.6.2 Get the maximum number of subplots from all associated data array
 subplots = -np.inf
 for var_stage in BS_score_dict.keys():
     for fc_BS in BS_score_dict[var_stage].keys():
@@ -697,7 +826,7 @@ for var_stage in BS_score_dict.keys():
         subplot_number = len(data_arr.time.data)
         if subplots<=subplot_number:
             subplots = subplot_number
-# 6.5.3 Iterate over each variety and stage to make the respective plot
+# 6.6.3 Iterate over each variety and stage to make the respective plot
 for var_stage in BS_score_dict.keys():
     var_stage_save_path = join(BS_save_path, var_stage)
     mkdir(var_stage_save_path)
@@ -750,7 +879,122 @@ for var_stage in BS_score_dict.keys():
                         grid_lon= list(grid_lons), grid_lat=list(grid_lats), subplot_title_font_size=3, outline = GDF_shape_outline, 
                         label_features = True, label_features_font_size=1.25, temporal_agg_var=subplot_names) 
                         #col_name="DOC_ID", list_geometry = [1, 10, 15, 16, 18, 20, 21, 22, 24, 26, 27, 36, 41,42])
-# 6.6 ECDF plot for the spatial variability 
+# 6.6.4 Make the GSS plot 
+GSS_save_path = join(root_path,"output", "out_flo_ver", "plots", "GSS_scores") # Define the output path
+mkdir(GSS_save_path) # Make the directory if not exist
+# Set the target cmap to apply
+cmap_modify = modify_cmap(discrete_cmap(18, base_cmap="PiYG"),  
+                   select_bins=list(range(5)) + [6,7,8,9,10,12,14,16], remove_bins=True)
+cmap_modify_bins  = cmap_modify(np.linspace(0,1,cmap_modify.N))  
+# Add the cmap from ocean 
+cmap_insert = discrete_cmap(20, base_cmap="ocean")
+# Access the ocean cmap list of sequence that represent each color bin in the cmap ocean
+cmap_insert_bins = cmap_insert(np.linspace(0,1,cmap_insert.N))
+# Utilize one colorbin from the desired cmap ocean to be inserted into cmap_modify_bins
+compiled_bins = np.insert(cmap_modify_bins, 5, cmap_insert_bins[4,:], axis=0)
+# Create a hybrid cmap based on selections of color bins from two different cmaps 
+cmap = ListedColormap(compiled_bins)
+cmap_bounds = [-1/3, 0, 0.2, 0.4, 0.6, 0.8, 1] # Set the cmap bound to apply
+norm_bound =  mpl.colors.BoundaryNorm(boundaries=cmap_bounds, ncolors = cmap.N+1, clip = False, extend="neither") # set the normalzied bound
+map_proj = ccrs.PlateCarree() # Define the projection type
+map_origin=ccrs.CRS("EPSG:4326") # Define the original CRS
+# Set the longitude and latitude of grid lines
+grid_lons = np.arange(round(minx), round(maxx)+1, 1)
+grid_lats = np.arange(round(miny), round(maxy)+1, 1)
+# Define a list of keyword strings that represent the forecast initialization months
+fc_months = ["Feb", "Mar", "Apr"] 
+subplot_rows = round(len(fc_months)) # Define the subplot rows
+# Iterate over each forecast occurrence threshold to make the respective plot for GSS plot
+for fc_thresh in GSS_score_dict.keys():
+    # Define the saving directory of each forecast threshold 
+    fc_thresh_dir = join(GSS_save_path, str(fc_thresh))
+    mkdir(fc_thresh_dir) # Make the directory if not exist
+    # Access the GSS score dictionary that store GSS computed for each variety-stage under a given threshold 
+    GSS_results_fc_thresh = GSS_score_dict[str(fc_thresh)]
+    # Iterate over each variety-stage to make the plot
+    for var_stage in GSS_results_fc_thresh.keys():
+        # Access the GSS results for a given variety-stage under a given forecast occurrence threshold
+        GSS_var_stage_dict = GSS_results_fc_thresh[var_stage]
+        # Define number of subplots involved for each variety-stage
+        subplots = len(GSS_var_stage_dict)
+        # Define the subplot columns
+        subplot_cols = round(subplots/subplot_rows)
+        # Create a grid system to apply for subplots
+        grid = gridspec.GridSpec(nrows = subplot_rows, ncols = subplot_cols, hspace = 0.05, wspace = 0.05)
+        fig = plt.figure(figsize=(subplot_rows*2.5, subplot_cols*3.5)) # Create a figure instance class       
+        # Iterate over each forecast initialization month-phenology category combination to get the plot
+        for outer_loop_index,fc_month in enumerate(fc_months): # Note the outer_loop_index is used to denote the row number in the subplot configuration
+            # Access a list of xarray data array objects that share the same forecast initilization month
+            fc_month_GSS_list = [key for key in GSS_var_stage_dict.keys() if fc_month in key]
+            # Sort the list so that it appears following early/normal/late phenology tercile
+            fc_month_GSS_list_sort = sorted(fc_month_GSS_list, key=lambda x: int(re.compile(r"\d+").findall(x)[0]), 
+                                       reverse=False) # Sort the key by 1,2,3, whici represent ealry/normal/late terciles
+            # Iterate over each early/normal/late phenology tercile under a given forecast initialization month
+            for inner_loop_index, fc_month_GSS_tercile in enumerate(fc_month_GSS_list_sort): # Note the inner_loop_index is used to denote the col number in the subplot configuration
+                # Create a subplot axe in the figure class instance
+                subplot_axe=fig.add_subplot(grid[outer_loop_index, inner_loop_index] ,projection=map_proj)
+                # Access the data array that is intended for the plot
+                GSS_data_arr =  GSS_var_stage_dict[fc_month_GSS_tercile]
+                # Write CF standard attributes (including the CRS information) into target data array with EPSG:4326 as the target CRS
+                GSS_data_arr_CRS = write_CF_attrs(GSS_data_arr)
+                # Clip the target GSS data array with provided input shape geometry
+                GSS_data_arr_CRS_clipped = GSS_data_arr_CRS.rio.clip(GDF_shape.geometry, GDF_shape.crs, all_touched=False, drop=True, invert=False, from_disk = False)
+                # Compute the zonal statistics for each target geometry/wine region
+                GSS_data_arr_CRS_clipped_zonal_stat = zonal_statistics(GSS_data_arr_CRS_clipped, GDF_shape, col_name="DOC_ID", decimal_place=1)
+                # Retrieve the underlying lon and lat names of the GSS data array
+                lon_name, lat_name= get_latlon_names(GSS_data_arr_CRS_clipped_zonal_stat)
+                # Obtain the longitude and latitude vectors
+                lonvec = GSS_data_arr_CRS_clipped_zonal_stat[lon_name].data
+                latvec = GSS_data_arr_CRS_clipped_zonal_stat[lat_name].data
+                # Get the projection latitude and longitude vectors
+                dlon = np.mean(lonvec[1:] - lonvec[:-1])
+                dlat = np.mean(latvec[1:] - latvec[:-1])
+                x, y = np.meshgrid( np.hstack((lonvec[0] - dlon/2., lonvec + dlon/2.)),
+                                np.hstack((latvec[0] - dlat/2., latvec + dlat/2.)) )
+                # Make the plot
+                subplot_axe.pcolormesh(x, y, GSS_data_arr_CRS_clipped_zonal_stat.data,
+                    norm=norm_bound, cmap=cmap #,shading= "nearest" 
+                    )
+                # Set the extent for each subplot map
+                extent=[np.min(lonvec)-0.5,np.max(lonvec)+0.75, np.min(latvec)-0.5,np.max(latvec)+0.5] # Minor adjustment with 0.5 degree in each direction
+                subplot_axe.set_extent(extent, crs=map_origin)
+                # Add the geometry(study regions) into the plot
+                subplot_axe.add_geometries(GDF_shape.geometry, map_proj,
+                       facecolor='none', edgecolor='black',  linewidth=0.7)
+                # Add the geometry(study outline) into the plot
+                subplot_axe.add_geometries(GDF_shape_outline.geometry, map_proj,
+                 facecolor='none', edgecolor='black', linewidth=0.7)
+                # Set the subplot title
+                #subplot_axe.set_title(fc_month_GSS_tercile, fontdict={"fontsize":5, "fontweight":'bold'},
+                                           #loc="right", x=0.95, y=0.95, pad=0.05)
+                 # Add the grid line locators 
+                add_gridlines(subplot_axe, grid_lons, grid_lats, fontsize=4, 
+                              top_labels=True, left_labels=True)
+                # Add the scale bar
+                add_scale_bar(subplot_axe, lonvec, latvec)
+                subplot_axe.set_autoscale_on(False) # Set the auto scaling effect for the subplot
+                # Add the desired geometry labels onto the geodataframe
+                add_gdf_labels(subplot_axe, GDF_shape, fontsize= 2.5)
+                # Make room for making a colorbar
+                fig.subplots_adjust(right=0.85,wspace=0.05,hspace=0.05)
+                # Add the colorbar axe
+                cbar_ax = fig.add_axes([0.9, 0.45, 0.02, 0.25])
+                # Add the colorbar to the figure class instance
+                cb  = mpl.colorbar.ColorbarBase(cbar_ax, cmap = cmap,
+                                                norm = norm_bound,
+                                                extend = "neither",
+                                                orientation = "vertical")
+                # Set the colorbar label
+                cb.ax.set_ylabel("GSS", rotation=270, fontdict={"size":12})
+                # Set the padding between colorbar label and colorbar    
+                cb.ax.get_yaxis().labelpad = 15
+                # Set the colorbar axis tick parameters
+                #cb.ax.tick_params(labelsize=cbar_label_size)
+        # Save the plot as the figure to a local disk
+        fig.savefig(join(fc_thresh_dir, str(var_stage) + ".png"), bbox_inches="tight",pad_inches=0.05, dpi=600)
+        plt.close(fig)  
+
+# 6.7 ECDF plot for the spatial variability 
 # Set a list of str that represent the forecast initialization months
 fc_init_list = ["Feb", "Mar", "Apr"] 
 # Set the line color for early/normal/late phenology tercile class
