@@ -16,7 +16,7 @@ import pandas as pd
 import re
 from collections.abc import Iterable 
 from collections import OrderedDict
-from spotpy.parameter import Uniform
+from spotpy.parameter import Uniform, Normal
 from scipy.stats import norm, truncnorm
 # from spotpy.parameter import Constant
 from spotpy.objectivefunctions import rmse
@@ -57,7 +57,7 @@ def detect_break_points(my_list, interval= 1, target_break_point="all"):
         else:
             return None
 # ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++        
-def parameter_dist(uniform_low, uniform_high, pre_CV):
+def parameter_dist(uniform_low, uniform_high, pre_CV, par_name):
     '''
     For each calibrated parameter, it is assumed that their parameter values follow a normal
     distribution, with their mean and sd following an uniform distribution. 
@@ -68,6 +68,7 @@ def parameter_dist(uniform_low, uniform_high, pre_CV):
     uniform_low : int or float, the pre-defined first guess for the mean of a potential normal distribution for the lower bound of the uniform distribution 
     uniform_high: int or float, the pre-defined first guess for the mean of a potential normal distribution for the upper bound of the uniform distribution 
     pre_CV: int or float, the coefficient of variation for the parameter. The CV applieds to the normal and uniform distribution parameters
+    par_name: str, the parameter name in use
     '''
     # Define the uniform distribution for the mean of parameter
     uniform_low_mean_sd = abs(uniform_low * (pre_CV / 100)) # Sd needs to be positive 
@@ -105,7 +106,7 @@ def parameter_dist(uniform_low, uniform_high, pre_CV):
     #     uniform_sd_high_sample= 0
     # # Avoid high is lower than low in the uniform distribution
     # while uniform_sd_low_sample>=uniform_sd_high_sample:
-    return par_mean, par_sd
+    return Normal(name=par_name, mean=par_mean.optguess, stddev= par_sd.optguess) # Return a normal distribution of potential parameter value
 #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 def check_file_stat(output_csv, file_type =".csv"):
     """
@@ -138,36 +139,55 @@ def f(d_ini, folder_out, path_data, path_obs, cv_i, **kwargs):
     kwargs: any additional keyword arguments, mainly composed of key-word parameter pairs
     '''
     class MySpotSetup(object):
+        param_list = [] # Create an empty list to append sampling parameter values 
         if len(kwargs)!=0:
             if ("classic_GDD" not in kwargs.values()) and ("GDD_Richardson" not in kwargs.values()):
                 # par0: thermal_threshold expressed in GDD, representing the growing degree days 
                 # from a starting date T0 to a date where the stage occurs.
                 # All models but GDD and GDD richardson models accumulate daily degree day between 0 and 1, therefore the critical state of forcing for a target stage is low
-                par0_mean, par0_sd = parameter_dist(20, 100, cv_i) # The supplied values are the first guess.
+                par0_sample = parameter_dist(20, 100, cv_i, "CTF")
             else:
-                par0_mean, par0_sd = parameter_dist(1120, 1411, cv_i)
+                par0_sample = parameter_dist(900, 1411, cv_i, "CTF")
+            # Append the parameter values
+            param_list.append(par0_sample)
             if ("wang" in kwargs.values()) or ("triangular" in kwargs.values()):
                 # par1: Tdmin, the base temperature for phenology development
-                par1_mean, par1_sd = parameter_dist(-5, 10, cv_i)
+                par1_sample = parameter_dist(-5, 10, cv_i, "MnDT")
+                # Append the parameter values
+                param_list.append(par1_sample)
                 # par2: Tdopt, the optimum temperature at which development rate is optimum.
-                par2_mean, par2_sd = parameter_dist(23, 28, cv_i)
-                # par3: Tdmax, the optimum temperature at which development rate is optimum.
-                par3_mean, par3_sd = parameter_dist(25, 40, cv_i)
+                par2_sample = parameter_dist(18, 28, cv_i, "ODT")
+                # Append the parameter values
+                param_list.append(par2_sample)
+                # par3: Tdmax, the maximum temperature at which development rate is stopped.
+                par3_sample = parameter_dist(25, 40, cv_i, "MxDT")
+                # Append the parameter values
+                param_list.append(par3_sample)
             elif "GDD_Richardson" in kwargs.values():
                 # par1: Tdmin, the base temperature for phenology development
-                par1_mean, par1_sd = parameter_dist(-5, 10, cv_i)
+                par1_sample = parameter_dist(-5, 10, cv_i, "MnDT")
+                # Append the parameter values
+                param_list.append(par1_sample)
                 # par3: Tdmax, the optimum temperature at which development rate is optimum.
-                par3_mean, par3_sd = parameter_dist(15, 40, cv_i)
+                par3_sample = parameter_dist(15, 40, cv_i, "MxDT")
+                # Append the parameter values
+                param_list.append(par3_sample)
             elif "sigmoid" in kwargs.values():
                 # par4: a, the sharpness of the curve exclusively for the sigmoid model
-                par4_mean, par4_sd = parameter_dist(-20, 20, cv_i)
+                par4_sample = parameter_dist(-30, 0, cv_i, "CS")
+                # Append the parameter values
+                param_list.append(par4_sample)
                 # par5: b, the mid-response temperature exclusively for the sigmoid model
-                par5_mean, par5_sd = parameter_dist(0, 25, cv_i)
+                par5_sample = parameter_dist(0, 25, cv_i, "MRT")
+                # Append the parameter values
+                param_list.append(par5_sample)
         else:
             raise KeyError("The model choice is not specified")
         # Define the init attribute for the MySpotSetup class
         def __init__(self, obj_func=None):
             self.obj_func = obj_func
+            # Assign the class attribute to get the target parameter list
+            self.params = MySpotSetup.param_list  
             # self.d_ini = d_ini
             # self.id_cpu = id_cpu
             self.path_data = path_data
@@ -220,6 +240,9 @@ def f(d_ini, folder_out, path_data, path_obs, cv_i, **kwargs):
             #self.T_max_series = T_max_series
             self.T_mean_series = weather_OB_plots.copy()
             self.study_variety = study_variety
+        # Define the essential parameter generating function
+        def parameters(self):
+            return spotpy.parameter.generate(self.params)
         def simulation(self, x):
             # Define the parameter vector to be passed
             print('... before running model ...')
@@ -228,39 +251,39 @@ def f(d_ini, folder_out, path_data, path_obs, cv_i, **kwargs):
                 # d_ini_sim = d_ini
                 #id_cpu_sim = self.id_cpu
                 # In all cases, the par0 will exist, because all model need to know the target thermal forcing
-                par0 = norm.rvs(loc=x[0], scale=x[1], size=1)
-                par0 = round(par0[0], 1)
+                #par0 = norm.rvs(loc=x[0], scale=x[1], size=1)
+                par0 = round(x[0], 1)
                 # For other structural parameters, a dict is defined to collect all values
                 par_dict = {}
                 if ("wang" in kwargs.values()) or ("triangular" in kwargs.values()):
-                    par1 = norm.rvs(loc=x[2], scale=x[3], size=1)
-                    par1 = round(par1[0], 1)
+                    #par1 = norm.rvs(loc=x[2], scale=x[3], size=1)
+                    par1 = round(x[1], 1)
                     par_dict["Tdmin"] = par1
-                    par2 = norm.rvs(loc=x[4], scale=x[5], size=1)
-                    par2 = round(par2[0], 1)
+                    #par2 = norm.rvs(loc=x[4], scale=x[5], size=1)
+                    par2 = round(x[2], 1)
                     par_dict["Tdopt"] = par2
-                    par3 = norm.rvs(loc=x[6], scale=x[7], size=1)
-                    par3 = round(par3[0], 1)
+                    #par3 = norm.rvs(loc=x[6], scale=x[7], size=1)
+                    par3 = round(x[3], 1)
                     par_dict["Tdmax"] = par3
                     # Concatenate the parameter list
                     pars = pd.DataFrame([par0, par1, par2, par3])
                     print("Parameters chosen are: par0={0}, par1={1}, par2={2}, par3={3}".format(str(par0), str(par1), str(par2), str(par3)))
                 elif "GDD_Richardson" in kwargs.values():
-                    par1 = norm.rvs(loc=x[2], scale=x[3], size=1)
-                    par1 = round(par1[0], 1)
+                    #par1 = norm.rvs(loc=x[2], scale=x[3], size=1)
+                    par1 = round(x[1], 1)
                     par_dict["Tdmin"] = par1
-                    par2 = norm.rvs(loc=x[4], scale=x[5], size=1)
-                    par2 = round(par2[0], 1)
+                    #par2 = norm.rvs(loc=x[4], scale=x[5], size=1)
+                    par2 = round(x[2], 1)
                     par_dict["Tdmax"] = par2
                     # Concatenate the parameter list
                     pars = pd.DataFrame([par0, par1, par2])
                     print("Parameters chosen are: par0={0}, par1={1}, par2={2}".format(str(par0), str(par1), str(par2)))
                 elif "sigmoid" in kwargs.values():
-                    par1 = norm.rvs(loc=x[2], scale=x[3], size=1)
-                    par1 = round(par1[0], 1)
+                    #par1 = norm.rvs(loc=x[2], scale=x[3], size=1)
+                    par1 = round(x[1], 1)
                     par_dict["a"] = par1
-                    par2 = norm.rvs(loc=x[4], scale=x[5], size=1)
-                    par2 = round(par2[0], 1)
+                    #par2 = norm.rvs(loc=x[4], scale=x[5], size=1)
+                    par2 = round(x[2], 1)
                     par_dict["b"] = par2
                     # Concatenate the parameter list
                     pars = pd.DataFrame([par0, par1, par2])
@@ -293,10 +316,10 @@ def f(d_ini, folder_out, path_data, path_obs, cv_i, **kwargs):
                         if "classic_GDD" in kwargs.values():
                 
                             phenology_out = phenology_model_run(T_mean, thermal_threshold = par0, module = list(kwargs.values())[0], 
-                                                                DOY_format=True, from_budburst=False, T0=60, Tdmin=0) # Other parameters
+                                                                DOY_format=True, from_budburst=False, T0=0, Tdmin=0) # Other parameters
                         else:
                             phenology_out = phenology_model_run(T_mean, thermal_threshold = par0, module = list(kwargs.values())[0], 
-                                                                DOY_format=True, from_budburst=False, T0=60, **par_dict) # Other parameters        
+                                                                DOY_format=True, from_budburst=False, T0=0, **par_dict) # Other parameters        
                     except:
                         break
                     phenology_SM_ser= pandas.concat([phenology_SM_ser, phenology_out],  axis=0, join="outer")
@@ -397,17 +420,17 @@ def f(d_ini, folder_out, path_data, path_obs, cv_i, **kwargs):
     print('... before sampler...')
     db_out = os.path.join(folder_out, 'SCEUA_db_cv' + str(cv_i)) # str(d_ini[0]) + '_' + str(d_ini[len(d_ini) - 1]) 
     sampler = spotpy.algorithms.sceua(my_spot_setup, dbname=db_out,
-                                      dbformat='csv')
+                                      dbformat='csv') #parallel='mpi')
 
     # ' Select number of maximum repetitions
-    rep = 20000 # 5000
+    rep = 50000 # 5000
 
     # ' We start the sampler and set some optional algorithm specific settings
     # ' (check out the publication of SCE-UA for details):
     # sampler.sample(rep, ngs=9, kstop=3, peps=0.1, pcento=0.1) # First setting. The ngs parameter should be greater than number of parameters for calibrations, including the mean and std of each target parameter.
     
     # Place where the SCE-UA is being implemented
-    sampler.sample(rep, ngs=20, kstop= 100, peps=0.0000001, pcento=0.0000001, max_loop_inc=None) # Suggested setting
+    sampler.sample(rep, ngs=40, kstop= 100, peps=0.0000001, pcento=0.0000001, max_loop_inc=None) # Suggested setting
     # sampler.sample(rep, ngs=20, kstop=100, peps=0.0000001, pcento=0.0000001, max_loop_inc=None) # Suggested setting
     # sys.stdout.close()
 

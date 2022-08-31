@@ -6,6 +6,7 @@
 
 import time
 import os
+import getpass
 #simport random
 import pandas as pd
 import numpy as np
@@ -103,14 +104,18 @@ def my_sce_ua(d_ini, path_data, path_obs, cv_i,**kwargs):
     f(d_ini, folder_output, path_data, path_obs, cv_i+1, model_selection = model_choice)
 ######################################################################################################################################################################
 # 1. User-specific input
-main_dir = r"H:\Grapevine_model_VineyardR_packages_SCE_implementations"
+if getpass.getuser() == 'Clim4Vitis':
+    script_drive = "H:\\"
+    #shape_path = r"H:\Grapevine_model_GridBasedSimulations_study4\shapefile"
+elif getpass.getuser() == 'Admin':
+    script_drive = "G:\\"
+# Define the main directory depending on the device
+main_dir = os.path.join(script_drive,"Grapevine_model_VineyardR_packages_SCE_implementations") 
 os.chdir(os.path.join(main_dir, "Pyphenology_SCE_UA", "calibration_run")) # Change to the implementation directory where all scripts are ready to be called  
 from sce_ua import f
 
-time_start = datetime.now()
-time_start_str = time_start.strftime("%Y-%m-%d %H:%M:%S")
-print("Start time =", time_start_str)
-cv_list = list(np.arange(5,30+5,5)) # Define the potential variability in suited parameter values
+# cv_list = list(np.arange(5,30+5,5)) # Define the potential variability in suited parameter values
+cv_list = list(np.arange(10,50+10,10)) # Test in a later fashion 
 gridded_climate_path = os.path.join(main_dir, "gridded_climate_data") # ("./calibration_test/Lisboa region_no_NAN.csv") # Path to weather data
 study_stage = "Flowering"
 study_varieties = ["TF", "TN"]
@@ -125,6 +130,9 @@ model_list = ["classic_GDD", "GDD_Richardson", "wang", "triangular", "sigmoid"]
 
 for cv_i in cv_list:
     for phenology_model_choice in model_list:
+        time_start = datetime.now()
+        time_start_str = time_start.strftime("%Y-%m-%d %H:%M:%S")
+        print("Start time =" + time_start_str + "for the model {} under CV experiment {}%".format(phenology_model_choice, str(cv_i)))
         out_dir = os.path.join(main_dir, "Pyphenology_SCE_UA", "calibration_run", str(cv_i), phenology_model_choice)
         mkdir(out_dir)
         for phenology_ob_variety in study_varieties:
@@ -135,7 +143,6 @@ for cv_i in cv_list:
                                                                     phenolog_ob_df.columns.isin(["Year"]))]
             # Load the subset of phenology observational data for a given variety
             variety_phenology_data =  variety_full_data.loc[:, ["Year","Plots_{}".format(phenology_ob_variety), phenology_ob_variety]]
-    
             # Export the subset of variety phenology data into local disk
             variety_phenology_data.to_csv(path_obs1,na_rep=-999,index=False,index_label=False)
             # # Define an random number to name the output
@@ -152,7 +159,7 @@ for cv_i in cv_list:
             # Print the computation end time
             time_end = datetime.now()
             time_end_str = time_end.strftime("%Y-%m-%d %H:%M:%S")
-            print("End time =", time_end_str)
-            
+            print("Start time =" + time_end_str + "for the model {} under CV experiment {}%".format(phenology_model_choice, str(cv_i)))
+            # Compute the total time costed
             time_elapsed = time_end - time_start
-            print("Elapsed time =", time_elapsed)
+            print("Elapsed time is " + str(time_elapsed) + "for the model {} under CV experiment {}%".format(phenology_model_choice, str(cv_i)))
