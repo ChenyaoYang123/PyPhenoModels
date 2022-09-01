@@ -139,55 +139,11 @@ def f(d_ini, folder_out, path_data, path_obs, cv_i, **kwargs):
     kwargs: any additional keyword arguments, mainly composed of key-word parameter pairs
     '''
     class MySpotSetup(object):
-        param_list = [] # Create an empty list to append sampling parameter values 
-        if len(kwargs)!=0:
-            if ("classic_GDD" not in kwargs.values()) and ("GDD_Richardson" not in kwargs.values()):
-                # par0: thermal_threshold expressed in GDD, representing the growing degree days 
-                # from a starting date T0 to a date where the stage occurs.
-                # All models but GDD and GDD richardson models accumulate daily degree day between 0 and 1, therefore the critical state of forcing for a target stage is low
-                par0_sample = parameter_dist(20, 100, cv_i, "CTF")
-            else:
-                par0_sample = parameter_dist(900, 1411, cv_i, "CTF")
-            # Append the parameter values
-            param_list.append(par0_sample)
-            if ("wang" in kwargs.values()) or ("triangular" in kwargs.values()):
-                # par1: Tdmin, the base temperature for phenology development
-                par1_sample = parameter_dist(-5, 10, cv_i, "MnDT")
-                # Append the parameter values
-                param_list.append(par1_sample)
-                # par2: Tdopt, the optimum temperature at which development rate is optimum.
-                par2_sample = parameter_dist(18, 28, cv_i, "ODT")
-                # Append the parameter values
-                param_list.append(par2_sample)
-                # par3: Tdmax, the maximum temperature at which development rate is stopped.
-                par3_sample = parameter_dist(25, 40, cv_i, "MxDT")
-                # Append the parameter values
-                param_list.append(par3_sample)
-            elif "GDD_Richardson" in kwargs.values():
-                # par1: Tdmin, the base temperature for phenology development
-                par1_sample = parameter_dist(-5, 10, cv_i, "MnDT")
-                # Append the parameter values
-                param_list.append(par1_sample)
-                # par3: Tdmax, the optimum temperature at which development rate is optimum.
-                par3_sample = parameter_dist(15, 40, cv_i, "MxDT")
-                # Append the parameter values
-                param_list.append(par3_sample)
-            elif "sigmoid" in kwargs.values():
-                # par4: a, the sharpness of the curve exclusively for the sigmoid model
-                par4_sample = parameter_dist(-30, 0, cv_i, "CS")
-                # Append the parameter values
-                param_list.append(par4_sample)
-                # par5: b, the mid-response temperature exclusively for the sigmoid model
-                par5_sample = parameter_dist(0, 25, cv_i, "MRT")
-                # Append the parameter values
-                param_list.append(par5_sample)
-        else:
-            raise KeyError("The model choice is not specified")
         # Define the init attribute for the MySpotSetup class
         def __init__(self, obj_func=None):
             self.obj_func = obj_func
             # Assign the class attribute to get the target parameter list
-            self.params = MySpotSetup.param_list  
+            #self.params = MySpotSetup.param_list  
             # self.d_ini = d_ini
             # self.id_cpu = id_cpu
             self.path_data = path_data
@@ -242,6 +198,52 @@ def f(d_ini, folder_out, path_data, path_obs, cv_i, **kwargs):
             self.study_variety = study_variety
         # Define the essential parameter generating function
         def parameters(self):
+            param_list = [] # Create an empty list to append sampling parameter values 
+            if len(kwargs)!=0:
+                if ("classic_GDD" not in kwargs.values()) and ("GDD_Richardson" not in kwargs.values()):
+                    # par0: thermal_threshold expressed in GDD, representing the growing degree days 
+                    # from a starting date T0 to a date where the stage occurs.
+                    # All models but GDD and GDD richardson models accumulate daily degree day between 0 and 1, therefore the critical state of forcing for a target stage is low
+                    par0_sample = parameter_dist(20, 100, cv_i, "CTF")
+                else:
+                    par0_sample = parameter_dist(900, 1411, cv_i, "CTF")
+                # Append the parameter values
+                param_list.append(par0_sample)
+                if ("wang" in kwargs.values()) or ("triangular" in kwargs.values()):
+                    # par1: Tdmin, the base temperature for phenology development
+                    par1_sample = parameter_dist(-5, 10, cv_i, "MnDT")
+                    # Append the parameter values
+                    param_list.append(par1_sample)
+                    # par2: Tdopt, the optimum temperature at which development rate is optimum.
+                    par2_sample = parameter_dist(18, 28, cv_i, "ODT")
+                    # Append the parameter values
+                    param_list.append(par2_sample)
+                    # par3: Tdmax, the maximum temperature at which development rate is stopped.
+                    par3_sample = parameter_dist(25, 40, cv_i, "MxDT")
+                    # Append the parameter values
+                    param_list.append(par3_sample)
+                elif "GDD_Richardson" in kwargs.values():
+                    # par1: Tdmin, the base temperature for phenology development
+                    par1_sample = parameter_dist(-5, 10, cv_i, "MnDT")
+                    # Append the parameter values
+                    param_list.append(par1_sample)
+                    # par3: Tdmax, the optimum temperature at which development rate is optimum.
+                    par3_sample = parameter_dist(15, 40, cv_i, "MxDT")
+                    # Append the parameter values
+                    param_list.append(par3_sample)
+                elif "sigmoid" in kwargs.values():
+                    # par4: a, the sharpness of the curve exclusively for the sigmoid model
+                    par4_sample = parameter_dist(-30, 0, cv_i, "CS")
+                    # Append the parameter values
+                    param_list.append(par4_sample)
+                    # par5: b, the mid-response temperature exclusively for the sigmoid model
+                    par5_sample = parameter_dist(0, 25, cv_i, "MRT")
+                    # Append the parameter values
+                    param_list.append(par5_sample)
+            else:
+                raise KeyError("The model choice is not specified")
+            # Attach the collect parameter list into the class instance attribute
+            self.params = param_list
             return spotpy.parameter.generate(self.params)
         def simulation(self, x):
             # Define the parameter vector to be passed
@@ -435,12 +437,10 @@ def f(d_ini, folder_out, path_data, path_obs, cv_i, **kwargs):
     # sys.stdout.close()
 
     # Get the results of the sampler
-    # results = sampler.getdata()
+    results = sampler.getdata()
 
     # Use the analyser to show the parameter interaction _' + str(d_ini[0]) + '_' + str(d_ini[1]) + '.csv'
-    # spotpy.analyser.plot_parameterInteraction(results, fig_name=folder_out + '/Parameterinteraction_' +
-    #                                                             str(d_ini[0]) + '_' + str(d_ini[len(d_ini) - 1]) +
-    #                                                             '_cv' + str(cv_i) + '.png')
+    spotpy.analyser.plot_parameterInteraction(results, fig_name=folder_out + '/Parameterinteraction.png')
 
     # posterior = spotpy.analyser.get_posterior(results, percentage=10)
 
