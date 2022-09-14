@@ -4,12 +4,14 @@ import pandas as pd
 import numpy as np
 import re
 import copy
+import time
 # import matplotlib.pyplot as plt 
 # # import matplotlib.ticker as mtick
 # import plotly.express as px
 # import plotly.graph_objects as go
 import glob
 import os
+import getpass
 import matplotlib.pyplot as plt
 import skill_metrics as sm
 from os.path import join
@@ -17,6 +19,22 @@ from matplotlib import rcParams
 from scipy.stats import norm
 from matplotlib import gridspec
 from collections import OrderedDict
+from datetime import datetime,timedelta
+from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
+######################################################################################################################################################################
+class Timer():
+    # This timer class can be ignored as it is only for test not planned to be implemented
+    def start(self):
+        print(f"[BENCHMARK] Start Time - {datetime.now()}")
+        self._start_time = time.perf_counter()
+
+    def _duration(self):
+        duration = timedelta(seconds=time.perf_counter() - self._start_time)
+        print(f"[BENCHMARK] Total Duration - {duration}")
+
+    def end(self):
+        self._duration()
+        print(f"[BENCHMARK] End Time - {datetime.now()}")
 ######################################################################################################################################################################
 def mkdir(dir = None):
   '''
@@ -69,22 +87,24 @@ def check_nan_ser(input_ser, fill_val = -999.00 ):
     else:
         return input_ser_copy
 #####################################################################################################################################################################
-def Make_Taylor_Diagram(Observations,Simulations,SaveFolder,Variable,RMS_ticks=np.arange(0,12+3,3),STD_ticks=np.arange(0,15+3,3),Axismax=15,MakerLegend=False): #
+def Make_Taylor_Diagram(Observations,Simulations,SaveFolder,Variable,
+                        RMS_ticks=np.arange(0,21+3,3),STD_ticks=np.arange(0,20+5,5),#COR_ticks= np.arange(-1.0,1.0+0.1,0.1),
+                        Axismax=20,MakerLegend=False): #
     '''
-  Plot the taylor diagram for a set of observation series and corresponding multiple predicted series
-
-  Mandatory Parameters
-  ----------
-  Observations: one-dimensional array or list for observed series of data.
-  Simulations: A dictionary or list of simulation series, each series will be compared with observed series
-  SaveFolder: The save folder to store the output figures.
-  Variable: Studied variable for the Taylor diagram, which is mainly used for purpose of saving file
-  ----------
-  Optional Parameters (options to customize the Taylor diagram)
-  ----------
-  RMS_ticks: numpy array of RMS values to plot gridding circles from observation point
-  STD_ticks: numpy array of STD values to plot gridding circles from observation point
-  Axismax: maximum for the radial contours (for the maximum STD contour)
+      Plot the taylor diagram for a set of observation series and corresponding multiple predicted series
+    
+      Mandatory Parameters
+      ----------
+      Observations: one-dimensional array or list for observed series of data.
+      Simulations: A dictionary or list of simulation series, each series will be compared with observed series
+      SaveFolder: The save folder to store the output figures.
+      Variable: Studied variable for the Taylor diagram, which is mainly used for purpose of saving file
+      ----------
+      Optional Parameters (options to customize the Taylor diagram)
+      ----------
+      RMS_ticks: numpy array of RMS values to plot gridding circles from observation point
+      STD_ticks: numpy array of STD values to plot gridding circles from observation point
+      Axismax: maximum for the radial contours (for the maximum STD contour)
     '''
 # https://github.com/PeterRochford/SkillMetrics/issues/19
     # Firstly check if observed and simulated series datatype
@@ -115,15 +135,18 @@ def Make_Taylor_Diagram(Observations,Simulations,SaveFolder,Variable,RMS_ticks=n
     sdev=[]
     crmsd=[]
     ccoef=[]
+    #bias= [] 
     # Firstly, attached the observed statistics into the required statistical list
     sdev.append(taylor_stats_OB['sdev'][0])
     crmsd.append(taylor_stats_OB['crmsd'][0])
     ccoef.append(taylor_stats_OB['ccoef'][0])
+    #bias.append(0) # Firstly, appending the 0bservational bias which is 0
     for SM_series in taylor_SM: # Here the taylor_SM must be a list of one-dimensional array
         taylor_stats = sm.taylor_statistics(SM_series,OB)
         sdev.append(taylor_stats['sdev'][1]) # Append the standard deviation value of each simulation series
         crmsd.append(taylor_stats['crmsd'][1]) # Append the centered RMS error value of each simulation series
         ccoef.append(taylor_stats['ccoef'][1]) # Append the Pearson correlation coefficient value of each simulation series
+        #bias.append(sm.bias(SM_series, OB))# Compute the bias between prediction and observations
     # After collecting the required statistics, the Taylor diagram is to be plotted 
     plt.close('all') # Close all precedent graphic handles if any
     # Make the input statistics as numpy array instead of lists
@@ -135,12 +158,14 @@ def Make_Taylor_Diagram(Observations,Simulations,SaveFolder,Variable,RMS_ticks=n
         markerlegend="on"
     else:
         markerlegend="off" 
+    # The option settings correspond to the example 7 shown in the Github skill metric site
     sm.taylor_diagram(np.array(sdev),np.array(crmsd),np.array(ccoef),checkStats="on",
-                      markercolor="red",alpha=0,markerSize=2,markerLegend=markerlegend,# Marker options
-                      titleOBS="OB", colOBS = 'black',styleOBS = '-', widthOBS=0.5,# Observational point options
+                      markerColor="red",markerSymbol="o",alpha=1,markerSize=0.1,markerLegend=markerlegend,# Marker options
+                      # Add the bias color bar locationColorBar = 'EastOutside', markerDisplayed = 'colorBar', titleColorBar = 'Bias',markerSize=0.1,markerLegend=markerlegend,cmapzdata=bias,
+                      titleOBS="OB", colOBS = 'black',styleOBS = '-', widthOBS=1, markerObs='s',# Observational point options
                       titleSTD="on",colSTD="black",styleSTD = '-.',widthSTD=0.5,showlabelsSTD='on',tickSTD = STD_ticks, rincSTD=STD_ticks[1]-STD_ticks[0],axismax=Axismax,# STD contour options
-                      titleRMS="on",colRMS = 'green', styleRMS = ':', widthRMS=0.5,showlabelsRMS="on",tickRMS = RMS_ticks,tickRMSangle=135, titleRMSDangle=170, # RMS contour options
-                      titleCOR="on",colCOR = 'blue', styleCOR = '--',widthCOR=0.5,showlabelsCOR="on") # Pearson correlation options
+                      titleRMS="on",colRMS = 'm', styleRMS = ':', widthRMS=0.5,showlabelsRMS="on",tickRMS = RMS_ticks, rincRMS = RMS_ticks[1]-RMS_ticks[0], tickRMSangle= 140, titleRMSDangle=90, # RMS contour options
+                      titleCOR="on",colCOR = 'blue', styleCOR = '--',widthCOR=0.5,showlabelsCOR="on",numberPanels = 2)#tickCOR=COR_ticks) # Pearson correlation options
 #    markerLabel=marker_labels_taylor, markerLabelColor = 'r'
     # sm.taylor_diagram(np.array(sdev),np.array(crmsd),np.array(ccoef),checkStats="on",
 #                  markercolor="red",markerLabel=marker_labels_taylor, markerLabelColor = 'r',alpha=0,markerSize=4,markerLegend=markerlegend,# Marker options
@@ -150,21 +175,30 @@ def Make_Taylor_Diagram(Observations,Simulations,SaveFolder,Variable,RMS_ticks=n
 #                  titleCOR="on",colCOR = 'blue', styleCOR = '--',widthCOR=0.5,showlabelsCOR="on") # 
 
     # Small decorations on the Tarlor diagram
-    rcParams["figure.figsize"] = [4, 3.5]
+    rcParams["figure.figsize"] = [3, 2.5]
     rcParams['lines.linewidth'] = 1 # line width for plots
-    rcParams.update({'font.size': 6})
+    rcParams.update({'font.size': 3})
     mkdir(SaveFolder)
-    outputfigure=os.path.join(SaveFolder,"Taylor_Diagram_{}.pdf".format(Variable))
-    plt.savefig(outputfigure)
+    outputfigure=os.path.join(SaveFolder,"Taylor_Diagram_{}.png".format(Variable))
+    plt.savefig(outputfigure,dpi=600, bbox_inches="tight") # pad_inches=0.5)
     plt.close("all")  
 #####################################################################################################################################################################
 #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 # 1. User-specific input
-main_dir = r"H:\Grapevine_model_VineyardR_packages_SCE_implementations\Pyphenology_SCE_UA\calibration_run"
+if getpass.getuser() == 'Clim4Vitis':
+    script_drive = "H:\\"
+    #shape_path = r"H:\Grapevine_model_GridBasedSimulations_study4\shapefile"
+elif getpass.getuser() == 'Admin':
+    script_drive = "G:\\"
+else:
+    script_drive = "F:\\Ongoing_2022_09"
+# Define the main directory depending on the device
+main_dir = os.path.join(script_drive,"Grapevine_model_VineyardR_packages_SCE_implementations", "Pyphenology_SCE_UA", "calibration_run") 
+#main_dir = r"H:\Grapevine_model_VineyardR_packages_SCE_implementations\Pyphenology_SCE_UA\calibration_run"
 os.chdir(main_dir) # Change to the current directory  
 model_list = ["classic_GDD", "GDD_Richardson", "sigmoid", "triangular", "wang"] # Define a list of models in use
 obj_func_col = "like1" #  The name in use for the objective function name
-cv_list = list(np.arange(5,30+5,5)) # Define the potential variability in suited parameter values
+cv_list = list(np.arange(0,50+10,10)) # Define the potential variability in suited parameter values
 #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 # Create an empty dict to create the variety-dependent model_pars_dict
@@ -172,13 +206,15 @@ cv_list = list(np.arange(5,30+5,5)) # Define the potential variability in suited
 final_results = {}
 for cv_i in cv_list:
     var_model_pars_dict = {} # Define an empty dict to collect results on the estimated parameter values
-    model_obj_dict = {}# Define an empty dict to collect results on the calculated objective function, i.e. RMSE
+    model_obj_min_dict = {}# Define an empty dict to collect results on the calculated objective function, i.e. RMSE
+    model_obj_mean_dict = {}# Define an empty dict to collect results on the calculated objective function, i.e. RMSE
     for phenology_model_choice in model_list:
         out_dir = os.path.join(main_dir, str(cv_i), phenology_model_choice)
         mkdir(out_dir)
         list_folder = [item for item in os.listdir(out_dir) if ".csv" not in item]
-        if (phenology_model_choice not in model_obj_dict.keys()):
-            model_obj_dict[phenology_model_choice] = {}
+        if (phenology_model_choice not in model_obj_min_dict.keys()):
+            model_obj_min_dict[phenology_model_choice] = {}
+            model_obj_mean_dict[phenology_model_choice] = {}
         # Iterate over each variety
         for folder in list_folder:
             output_csv = glob.glob(join(out_dir,folder,"*_db_*.csv"))[0] # Obtain the output file path
@@ -192,65 +228,74 @@ for cv_i in cv_list:
                 model_pars_dict[phenology_model_choice] = {}
             # Obtain the target parameters 
             # Since multiple different values could lead to the same performance, averages of mean and std values are adopted
-            par0_gaussian = fit_gaussian(np.nanmean(output_df_target["parpar0_mean"]), 
-                                             np.nanmean(output_df_target["parpar0_sd"])) # Create the normal distribution based on the distribution parameters obtained
-            model_pars_dict[phenology_model_choice]["par0"] =  {"mean":np.nanmean(output_df_target["parpar0_mean"]),
-                                                                                  "std":np.nanmean(output_df_target["parpar0_sd"])}    #  copy.deepcopy(par0_gaussian) # Save the parameter normal distribution into target dict
+            #par0_gaussian = fit_gaussian(np.nanmean(output_df_target["parpar0_mean"]), 
+            #                                 np.nanmean(output_df_target["parpar0_sd"])) # Create the normal distribution based on the distribution parameters obtained
+            model_pars_dict[phenology_model_choice]["parCTF"] =  {"mean":np.nanmean(output_df_target["parCTF"])}
+                                                                                 #"std":np.nanmean(output_df_target["parpar0_sd"])}    #  copy.deepcopy(par0_gaussian) # Save the parameter normal distribution into target dict
             # Note par0 is the parameter that every model will have
             if phenology_model_choice == "GDD_Richardson":
                 # Since multiple different values could lead to the same performance, averages of mean and std values are adopted
                 # Par1
-                par1_gaussian = fit_gaussian(np.nanmean(output_df_target["parpar1_mean"]) , 
-                                             np.nanmean(output_df_target["parpar1_sd"])) # Create the normal distribution based on the distribution parameters obtained
-                model_pars_dict[phenology_model_choice]["par1"] = {"mean":np.nanmean(output_df_target["parpar1_mean"]),
-                                                                   "std":np.nanmean(output_df_target["parpar1_sd"])}  # copy.deepcopy(par1_gaussian) # Save the parameter normal distribution into target dict
+                # par1_gaussian = fit_gaussian(np.nanmean(output_df_target["parpar1_mean"]) , 
+                #                              np.nanmean(output_df_target["parpar1_sd"])) # Create the normal distribution based on the distribution parameters obtained
+                model_pars_dict[phenology_model_choice]["parMnDT"] = {"mean":np.nanmean(output_df_target["parMnDT"])}
+                                                                   #"parMxDT":np.nanmean(output_df_target["parpar1_sd"])}  # copy.deepcopy(par1_gaussian) # Save the parameter normal distribution into target dict
                 # Par3
-                par3_gaussian = fit_gaussian(np.nanmean(output_df_target["parpar3_mean"]) , 
-                                             np.nanmean(output_df_target["parpar3_sd"])) # Create the normal distribution based on the distribution parameters obtained
-                model_pars_dict[phenology_model_choice]["par3"] =  {"mean":np.nanmean(output_df_target["parpar3_mean"]),
-                                                                   "std":np.nanmean(output_df_target["parpar3_sd"])} 
+                model_pars_dict[phenology_model_choice]["parMxDT"] = {"mean":np.nanmean(output_df_target["parMxDT"])}
+                # par3_gaussian = fit_gaussian(np.nanmean(output_df_target["parpar3_mean"]) , 
+                #                              np.nanmean(output_df_target["parpar3_sd"])) # Create the normal distribution based on the distribution parameters obtained
+                # model_pars_dict[phenology_model_choice]["par3"] =  {"mean":np.nanmean(output_df_target["parpar3_mean"]),
+                #                                                    "std":np.nanmean(output_df_target["parpar3_sd"])} 
                 # Save the parameter normal distribution into target dict
             elif phenology_model_choice == "sigmoid":
                 # Since multiple different values could lead to the same performance, averages of mean and std values are adopted
                 # Par4
-                par4_gaussian = fit_gaussian(np.nanmean(output_df_target["parpar4_mean"]) , 
-                                             np.nanmean(output_df_target["parpar4_sd"])) # Create the normal distribution based on the distribution parameters obtained
-                model_pars_dict[phenology_model_choice]["par4"] =  {"mean":np.nanmean(output_df_target["parpar4_mean"]),
-                                                                   "std":np.nanmean(output_df_target["parpar4_sd"])} 
+                model_pars_dict[phenology_model_choice]["parCS"] = {"mean":np.nanmean(output_df_target["parCS"])}
+                # par4_gaussian = fit_gaussian(np.nanmean(output_df_target["parpar4_mean"]) , 
+                #                              np.nanmean(output_df_target["parpar4_sd"])) # Create the normal distribution based on the distribution parameters obtained
+                # model_pars_dict[phenology_model_choice]["par4"] =  {"mean":np.nanmean(output_df_target["parpar4_mean"]),
+                #                                                    "std":np.nanmean(output_df_target["parpar4_sd"])} 
                 # Save the parameter normal distribution into target dict
                 # Par5
-                par5_gaussian = fit_gaussian(np.nanmean(output_df_target["parpar5_mean"]) , 
-                                             np.nanmean(output_df_target["parpar5_sd"])) # Create the normal distribution based on the distribution parameters obtained
-                model_pars_dict[phenology_model_choice]["par5"] =  {"mean":np.nanmean(output_df_target["parpar5_mean"]),
-                                                                   "std":np.nanmean(output_df_target["parpar5_sd"])} 
+                model_pars_dict[phenology_model_choice]["parMRT"] = {"mean":np.nanmean(output_df_target["parMRT"])}
+                # par5_gaussian = fit_gaussian(np.nanmean(output_df_target["parpar5_mean"]) , 
+                #                              np.nanmean(output_df_target["parpar5_sd"])) # Create the normal distribution based on the distribution parameters obtained
+                # model_pars_dict[phenology_model_choice]["par5"] =  {"mean":np.nanmean(output_df_target["parpar5_mean"]),
+                #                                                    "std":np.nanmean(output_df_target["parpar5_sd"])} 
                 # Save the parameter normal distribution into target dict
             elif (phenology_model_choice == "triangular") or (phenology_model_choice == "wang"):
                 # Since multiple different values could lead to the same performance, averages of mean and std values are adopted
                 # Par1
-                par1_gaussian = fit_gaussian(np.nanmean(output_df_target["parpar1_mean"]) , 
-                                             np.nanmean(output_df_target["parpar1_sd"])) # Create the normal distribution based on the distribution parameters obtained
-                model_pars_dict[phenology_model_choice]["par1"] = {"mean":np.nanmean(output_df_target["parpar1_mean"]),
-                                                                   "std":np.nanmean(output_df_target["parpar1_sd"])} 
-                # Save the parameter normal distribution into target dict
+                model_pars_dict[phenology_model_choice]["parMnDT"] = {"mean":np.nanmean(output_df_target["parMnDT"])}
                 # Par2
-                par2_gaussian = fit_gaussian(np.nanmean(output_df_target["parpar2_mean"]) , 
-                                             np.nanmean(output_df_target["parpar2_sd"])) # Create the normal distribution based on the distribution parameters obtained
-                model_pars_dict[phenology_model_choice]["par2"] =  {"mean":np.nanmean(output_df_target["parpar2_mean"]),
-                                                                   "std":np.nanmean(output_df_target["parpar2_sd"])} 
-                # Save the parameter normal distribution into target dict
+                model_pars_dict[phenology_model_choice]["parODT"] = {"mean":np.nanmean(output_df_target["parODT"])}
                 # Par3
-                par3_gaussian = fit_gaussian(np.nanmean(output_df_target["parpar3_mean"]) , 
-                                             np.nanmean(output_df_target["parpar3_sd"])) # Create the normal distribution based on the distribution parameters obtained
-                model_pars_dict[phenology_model_choice]["par3"] =  {"mean":np.nanmean(output_df_target["parpar3_mean"]),
-                                                                   "std":np.nanmean(output_df_target["parpar3_sd"])} 
+                model_pars_dict[phenology_model_choice]["parMxDT"] = {"mean":np.nanmean(output_df_target["parMxDT"])}
+                # par1_gaussian = fit_gaussian(np.nanmean(output_df_target["parpar1_mean"]) , 
+                #                              np.nanmean(output_df_target["parpar1_sd"])) # Create the normal distribution based on the distribution parameters obtained
+                # model_pars_dict[phenology_model_choice]["par1"] = {"mean":np.nanmean(output_df_target["parpar1_mean"]),
+                #                                                    "std":np.nanmean(output_df_target["parpar1_sd"])} 
+                # Save the parameter normal distribution into target dict
+                # par2_gaussian = fit_gaussian(np.nanmean(output_df_target["parpar2_mean"]) , 
+                #                              np.nanmean(output_df_target["parpar2_sd"])) # Create the normal distribution based on the distribution parameters obtained
+                # model_pars_dict[phenology_model_choice]["par2"] =  {"mean":np.nanmean(output_df_target["parpar2_mean"]),
+                #                                                    "std":np.nanmean(output_df_target["parpar2_sd"])} 
+                # Save the parameter normal distribution into target dict
+                # par3_gaussian = fit_gaussian(np.nanmean(output_df_target["parpar3_mean"]) , 
+                #                              np.nanmean(output_df_target["parpar3_sd"])) # Create the normal distribution based on the distribution parameters obtained
+                # model_pars_dict[phenology_model_choice]["par3"] =  {"mean":np.nanmean(output_df_target["parpar3_mean"]),
+                #                                                    "std":np.nanmean(output_df_target["parpar3_sd"])} 
                 # Save the parameter normal distribution into target dict
             # Attach the variety-dependent results
             if var_name not in var_model_pars_dict.keys():
                 var_model_pars_dict[var_name] = {}
             var_model_pars_dict[var_name].update(copy.deepcopy(model_pars_dict))
             # Obtain the minimized objective function value, i.e. RMSE
-            obj_mean = np.nanmin(output_df_target[obj_func_col].unique())
-            model_obj_dict[phenology_model_choice][var_name] = obj_mean
+            obj_min = np.nanmin(output_df_target[obj_func_col].unique())
+            model_obj_min_dict[phenology_model_choice][var_name] = float(obj_min)
+            # Obtain the mean objective function value, i.e. RMSE
+            obj_mean = np.nanmean(output_df[obj_func_col])
+            model_obj_mean_dict[phenology_model_choice][var_name] = float(obj_mean)
 # for variety, pars_dict in var_model_pars_dict.items():
 #     for model_name, par_dict in  pars_dict.items():
 #         for par_name, par_dist in par_dict.items():
@@ -258,7 +303,8 @@ for cv_i in cv_list:
 #             std = par_dist["std"]
 #             print(mean,std )
     final_results["CV" + str(cv_i) + "pars_dist"] = var_model_pars_dict.copy()
-    final_results["CV" + str(cv_i) + "obj_func"] = model_obj_dict.copy()
+    final_results["CV" + str(cv_i) + "obj_min_func"] = model_obj_min_dict.copy()
+    final_results["CV" + str(cv_i) + "obj_mean_func"] = model_obj_mean_dict.copy()
 #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 # # 3. Line plot on the parameter distribution
 # save_path = join(main_dir, "results")
@@ -306,55 +352,107 @@ for cv_i in cv_list:
 #         fig.savefig(join(variety_save_folder, model_name+".png"),dpi=600, bbox_inches="tight", pad_inches=0.1)
 #         plt.close("all")   
 #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-# 4. Bar plot on the goodness-of-fit
+# 4 Bar plot on the goodness-of-fit
 save_path = join(main_dir, "results")
 mkdir(save_path)
-# 4.1 Extract a list of prior-assumed CV
-CV_keys = [cv_key for cv_key in final_results.keys() if "obj" in cv_key]
-# 4.2 The goodness-of-fit plot for different CV
-for CV_key in CV_keys:
-    model_obj_dict = final_results[CV_key] # Access the underlying dict for a given assumed CV variation
-    grid = gridspec.GridSpec(nrows = 1, ncols = len(model_obj_dict),wspace=0.15)
-    axis_list=[] # append to this empty list a number of grid specifications
-    for col in range(len(model_obj_dict)):
-        axis_list.append(grid[0, col])      
-    fig = plt.figure(figsize=(2.5*len(model_obj_dict),2)) # Create a figure instance class
-    #fig, ax = plt.subplots(1, len(model_obj_dict), figsize=(2*len(model_obj_dict),3), gridspec_kw= dict(hspace = 0.1, wspace = 0.5)) 
-    bar_width = 1 # Specify the bar width
-    y_label = "RMSE (days)"
-    y_ticks = np.arange(0, 20+5, 5) # Set a fixed y range to represent the min and maxi possible RMSE values
-    # var_abbr = {"Cabernet_Sauvignon_T":"CS", "Chardonnay_B":"CD",  
-    #             "Grenache_T":"GN", "Riesling_B":"RS", 
-    #             "Touriga_Francesa_T":"TF", "Touriga_Nacional_T":"TN"}
-    for index, ((model_name, var_dict), axe_grid) in enumerate(zip(model_obj_dict.items(), axis_list)):
-        axe_sub = fig.add_subplot(axe_grid)
-        para_values=list(var_dict.values()) # List of values to be used as heights in the bar plot
-        para_labels=list(var_dict.keys()) # List of strings to be used as labels in the bar plot
-        x = np.arange(0,len(para_values)*2,2) # Set the bar at the x-position for every 2 adjacent value
-        axe_sub.bar(x, para_values, bar_width, color=color_choice("lightgrey"),edgecolor='black')
-        axe_sub.set_xticks(x) # Set the x-axis ticks for every 2-adjacent sequence 
-        #axe_sub.set_xticklabels([var_abbr[para_label] for para_label in para_labels],fontdict={"fontweight":"bold"}) # Label the x-axis for every 2-adjacent sequence 
-        axe_sub.set_xticklabels([str(para_label) for para_label in para_labels],fontdict={"fontweight":"bold"}) # Label the x-axis
-        axe_sub.set_yticks(y_ticks) # Set the x-axis ticks for every 2-adjacent sequence 
-        axe_sub.set_yticklabels([str(round(y_tick,1)) for y_tick in y_ticks], fontdict={"fontweight":"bold"}) # Label the x-axis for every 2-adjacent sequence 
-        axe_sub.tick_params(axis='x',length=1,labelsize=6,pad=3.5) # Set the x-axis tick parameters
-        axe_sub.tick_params(axis='y',length=1,labelsize=6,pad=3.5)
-        if index==0:
-            axe_sub.set_ylabel(y_label, fontdict={"fontsize":6})
-        #axe_sub.set_ylim(bottom=0,top=20) 
-        if model_name == "classic_GDD":
-            title_name = "GDD"
-        else:
-            title_name = model_name
-        axe_sub.set_title(title_name,fontdict={'fontsize':7},loc='center',y=0.85,fontweight="bold") 
-        #axe_sub.set_aspect(aspect='auto',adjustable='box')
-        #plt.rcParams["font.weight"] = "bold" # set every text in bold  
-    #fig.tight_layout()
-    # Save the plot to the file
-    save_dir = join(save_path, CV_key)
-    mkdir(save_dir)
-    fig.savefig(join(save_dir,"obj_summary.png"),dpi=600, bbox_inches="tight", pad_inches=0.1)
-    plt.close("all")      
+# # 4.1 Extract a list of prior assumed CV
+# CV_keys = [cv_key for cv_key in final_results.keys() if "obj_min_func" in cv_key]
+# # 4.2 The goodness-of-fit plot for different CV
+# for CV_key in CV_keys:
+#     model_obj_dict = final_results[CV_key] # Access the underlying dict =0.15)
+#     axis_list=[] # append to this empty list a number of grid specificationsfor a given assumed CV variation
+#     grid = gridspec.GridSpec(nrows = 1, ncols = len(model_obj_dict),wspace=0.05)
+#     for col in range(len(model_obj_dict)):
+#         axis_list.append(grid[0, col])      
+#     fig = plt.figure(figsize=(2.5*len(model_obj_dict),2)) # Create a figure instance class
+#     #fig, ax = plt.subplots(1, len(model_obj_dict), figsize=(2*len(model_obj_dict),3), gridspec_kw= dict(hspace = 0.1, wspace = 0.5)) 
+#     bar_width = 1 # Specify the bar width
+#     y_label = "RMSE (days)"
+#     y_ticks = np.arange(0, 20+5, 5) # Set a fixed y range to represent the min and maxi possible RMSE values
+#     # var_abbr = {"Cabernet_Sauvignon_T":"CS", "Chardonnay_B":"CD",  
+#     #             "Grenache_T":"GN", "Riesling_B":"RS", 
+#     #             "Touriga_Francesa_T":"TF", "Touriga_Nacional_T":"TN"}
+#     for index, ((model_name, var_dict), axe_grid) in enumerate(zip(model_obj_dict.items(), axis_list)):
+#         axe_sub = fig.add_subplot(axe_grid)
+#         para_values=list(var_dict.values()) # List of values to be used as heights in the bar plot
+#         para_labels=list(var_dict.keys()) # List of strings to be used as labels in the bar plot
+#         x = np.arange(0,len(para_values)*2,2) # Set the bar at the x-position for every 2 adjacent value
+#         axe_sub.bar(x, para_values, bar_width, color=color_choice("lightgrey"),edgecolor='black')
+#         axe_sub.set_xticks(x) # Set the x-axis ticks for every 2-adjacent sequence 
+#         #axe_sub.set_xticklabels([var_abbr[para_label] for para_label in para_labels],fontdict={"fontweight":"bold"}) # Label the x-axis for every 2-adjacent sequence 
+#         axe_sub.set_xticklabels([str(para_label) for para_label in para_labels],fontdict={"fontweight":"bold"}) # Label the x-axis
+#         axe_sub.set_yticks(y_ticks) # Set the x-axis ticks for every 2-adjacent sequence 
+#         axe_sub.set_yticklabels([str(round(y_tick,1)) for y_tick in y_ticks], fontdict={"fontweight":"bold"}) # Label the x-axis for every 2-adjacent sequence 
+#         axe_sub.tick_params(axis='x',length=1,labelsize=6,pad=3.5) # Set the x-axis tick parameters
+#         axe_sub.tick_params(axis='y',length=1,labelsize=6,pad=3.5)
+#         if index==0:
+#             axe_sub.set_ylabel(y_label, fontdict={"fontsize":6})
+#         #axe_sub.set_ylim(bottom=0,top=20) 
+#         if model_name == "classic_GDD":
+#             title_name = "GDD"
+#         else:
+#             title_name = model_name
+#         axe_sub.set_title(title_name,fontdict={'fontsize':7},loc='center',y=0.85,fontweight="bold") 
+#         #axe_sub.set_aspect(aspect='auto',adjustable='box')
+#         #plt.rcParams["font.weight"] = "bold" # set every text in bold  
+#     #fig.tight_layout()
+#     # Save the plot to the file
+#     save_dir = join(save_path, CV_key)
+#     mkdir(save_dir)
+#     fig.savefig(join(save_dir,"obj_summary.png"),dpi=600, bbox_inches="tight", pad_inches=0.1)
+#     plt.close("all")
+# 4.1 Grouped bar plot
+# 4.1.1 Set up the constants
+CV_keys = [cv_key for cv_key in final_results.keys() if "obj_min_func" in cv_key] # A list of objective function keys that lead to the minimum objective function
+CV_keys_mean = [cv_key for cv_key in final_results.keys() if "obj_mean_func" in cv_key] # A list of objective function keys that lead to the mean objective function
+bar_width = 0.35 # Specify the bar width
+x_interval = 3 # An integer to specify the interval in the x-axis coordinate
+x = np.arange(0,len(model_list)*bar_width*x_interval*len(CV_keys),len(model_list)*bar_width*x_interval) # Specify the x-coordinate position
+y_label = "RMSE (days)" # Specify the y-axis labels
+y_ticks = np.arange(0, 49+7, 7) # Specify the y-axis ticks
+fig, ax = plt.subplots(1, 1, figsize=(2.5*len(CV_keys),2)) # Create a one subplot figure instance
+# 4.1.2 Iterate over prior obtained keys to make the bar plot
+for outer_index, (CV_key, CV_key_mean, x_position) in enumerate(zip(CV_keys, CV_keys_mean, x)): # Every single x position comes up with a CV experiment result 
+    if outer_index!= (len(CV_keys)-1):
+        model_obj_dict = final_results[CV_key] # Access the underlying dict for a given assumed CV variation
+        model_obj_dict_mean = final_results[CV_key_mean] # Access the underlying dict for a given assumed CV variation
+        for inner_index, ((key, value),(key1,value1)) in enumerate(zip(model_obj_dict.items(), model_obj_dict_mean.items())): # Key is the model name and the value for the objective function dict
+            if key != key1:
+                raise KeyError("different keys are found in the target dictionaries")
+            # Make the bar plot for the two variety each time
+            ax.bar(x_position-(len(model_list)-inner_index)*bar_width, value["TF"], bar_width, color=color_choice("orange"),edgecolor='black', align="edge", 
+                   yerr = np.vstack([0, value1["TF"]-value["TF"]]), capsize=3) # Error bar settings
+            ax.bar(x_position+(inner_index+0.5)*bar_width, value["TN"], bar_width, color=color_choice("green"),edgecolor='black',align="center",
+                   yerr = np.vstack([0, value1["TN"]-value["TN"]]), capsize=3) # Error bar settings)
+            # Specify the bar label settings based on the model name
+            if key=="classic_GDD":
+                bar_label = "GDD"
+            elif key=="GDD_Richardson":
+                bar_label = "Richardson"
+            else:
+                bar_label=key
+            # Add the model name label for both target varieties
+            ax.text(x_position-(len(model_list)-inner_index)*bar_width + 0.5*bar_width, -15, bar_label, fontsize=5, color='black', horizontalalignment='center', transform = ax.transData, rotation=90, weight="bold") # TF
+            ax.text(x_position+(inner_index+0.5)*bar_width, -15, bar_label, fontsize=5, color='black', horizontalalignment='center', transform = ax.transData, rotation=90, weight="bold") # TN
+            # Add the minimum objective function values for both target varieties
+            ax.text(x_position-(len(model_list)-inner_index)*bar_width + 0.5*bar_width, 1, str(round(value["TF"],2)), fontsize=5, color='black', horizontalalignment='center', transform = ax.transData, rotation=90, weight="bold") # TF
+            ax.text(x_position+(inner_index+0.5)*bar_width, 1, str(round(value["TN"],2)), fontsize=5, color='black', horizontalalignment='center', transform = ax.transData, rotation=90, weight="bold") # TN
+# 4.1.3 Decorations on the plot
+ax.set_yticks(y_ticks) # Set the y-axis ticks
+ax.set_yticklabels([str(round(y_tick)) for y_tick in y_ticks], fontdict={"fontweight":"bold"}) # Label the y-axis
+ax.tick_params(axis='x', which='both',top=False, bottom=False,labelbottom=False) # Set the x-axis tick parameters
+ax.tick_params(axis='y',length=2,labelsize=5, pad=3.5) # Set the y-axis tick parameters
+ax.set_ylabel(y_label, fontdict={"fontsize":6.5,"weight":"bold"}) # Set the y-axis label
+ax.grid(visible=True, which='major', axis='y', lw=1, ls="--") # Add the background grid lines
+# 4.1.4 Add the CV experiment label text
+for index, (CV_experiment, x_position) in enumerate(zip(CV_keys, x)):
+    if index != (len(x)-1):
+        # Add additional labels for the plot
+        ax.text(x_position, 30, "CV=" + "{:.0f}%".format(index*10), fontsize=5, color='black', 
+                horizontalalignment='center', transform = ax.transData, weight="bold")
+# 4.1.5 Save the figure into the disk
+fig.savefig("obj_summary",dpi=600, bbox_inches="tight", pad_inches=0.1)
+plt.close("all")
 #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++    
 # 5 The parameter value and uncertainty plot
 CV_keys = [cv_key for cv_key in final_results.keys() if "pars_dist" in cv_key]
@@ -523,6 +621,10 @@ for model_name in  para_excel_sheet_names:
     # Access the underlying list of parameters for each model
     para_list = model_parameter_dict[model_name]
     for cv_i in cv_list: # Iterate over each cv considered
+        # Count the execution time for each model
+        time_start = datetime.now()
+        time_start_str = time_start.strftime("%Y-%m-%d %H:%M:%S")
+        print("Start running model {} for the experiment CV{}% at {}".format(model_name, str(cv_i), time_start_str))
         # Establish the fitted normal distribution from the calibrated mean and std for each parameter under a given model and a variety 
         para_dist_dict = {} # Create an empty dict to store the fitted distribution of each parameter according to its calibrated mean and std
         for para_name in para_list:
@@ -536,7 +638,8 @@ for model_name in  para_excel_sheet_names:
             para_normal_fit = fit_gaussian(float(para_mean), float(para_std)) # Copy the fitted normal distribution into the target dicts
             para_dist_dict[str(para_name)] = copy.deepcopy(para_normal_fit)
         # Run the simulations with pre-defined number of repetitions using sampled parameter values from the fitted normal distributions
-        SM_taylor= OrderedDict()  # Create an empty dictionary to store all simulations from every sampled parameter values from the fitted normal distribution
+        SM_taylor= OrderedDict() # Create an empty dictionary to store all simulations from every sampled parameter values from the fitted normal distribution
+        SM_parameters_dict = OrderedDict() # Create an empty dictionary to store all sampled parameter values  
         for rep_id in range(rep):
             while tolerable_sampling:
                 # Define a dict to collect parameter value for parameters other than CTF. For CTF, it will be accessed directly from the dict
@@ -564,11 +667,35 @@ for model_name in  para_excel_sheet_names:
                 # In case of correct model run without NaN values, indicating the parameter sampling fine
                 else:
                     break # Break the while loop means the parameter sampling is within the reasonable range, thus can go to the next step
+            target_SM_ser = phenology_out.copy(deep=True)
             # Collect the simulation values
-            SM_taylor["rep_" + str(rep_id+1)] = phenology_out.copy(deep=True)
+            SM_taylor["rep_" + str(rep_id+1)] = np.array(target_SM_ser).copy() # Convert the series into the numpy array
+            if model_name=="classic_GDD":
+                SM_parameters_dict["rep_" + str(rep_id+1)] = {"CTF":CTF_par}.copy()
+            else:
+                par_dict.update({"CTF":CTF_par}) # Update the dictionary by adding the "CTF" parameter
+                SM_parameters_dict["rep_" + str(rep_id+1)] = par_dict.copy()
         # Make the Taylor diagram plot
         save_path_taylor = join(save_path, "taylor_diagram", model_name) # Create a customized saving path
         mkdir(save_path_taylor)
-        Make_Taylor_Diagram(list(phenology_ob_use), SM_taylor, save_path_taylor, "eval_{}".format(cv_i))  
+        Make_Taylor_Diagram(list(phenology_ob_use), SM_taylor, save_path_taylor, "eval_CV{}".format(cv_i))  
+        # Print the computation end time
+        time_end = datetime.now()
+        time_end_str = time_end.strftime("%Y-%m-%d %H:%M:%S")
+        print("End time =", time_end_str)
+        time_elapsed = time_end - time_start
+        print("Elapsed time for running model {0} for the experiment CV{1}% amounts to".format(model_name, str(cv_i)), time_elapsed)
+        # Export the best parameter sampling in evaluation into the excel file
+        # Iterate over the parameter dictionary to identify parameters that contribute to the minimum errors 
+        EF_control = np.NINF # Set a positive infinity for model efficiency control to step in
+        EF_list = ["_"]# Create a single element list to be constantly replaced througout the processs
+        for rep_, SM_ser in SM_taylor.items():                
+            model_EF = r2_score(np.array(phenology_ob_use), np.array(SM_ser)) # model efficiency computed as the evaluation metrics
+            if EF_control<=model_EF:
+                EF_control=model_EF
+                EF_list[0] = rep_ # Always replace the first list element to make sure there will be only 1 list element in the end, which corresponds to the target parameter set with the best EF
+        # Export the target parameter set to the .csv file  
+        pd.Series(SM_parameters_dict[EF_list[0]]).to_csv(join(save_path_taylor, "best_eval_Para_CV{}%.csv".format(str(cv_i))), 
+                                                         index=True, index_label="parameter", header=["parameter_value"])
         
             
