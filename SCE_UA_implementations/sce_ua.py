@@ -57,48 +57,64 @@ def detect_break_points(my_list, interval= 1, target_break_point="all"):
         else:
             return None
 # ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++        
-def parameter_dist(uniform_low, uniform_high, pre_CV, par_name):
+def parameter_dist(uniform_low, uniform_high, pre_CV, par_name, fix_bound=False, dis_method= "percentage"):
     '''
     For each calibrated parameter, it is assumed that their parameter values follow a normal
-    distribution, with their mean and sd following an uniform distribution. 
+    distribution, with their expected values following a uniform distribution. 
     From the inferred uniform distribution, the low and high values are assumed to follow a normal distribution.    
-
+    The current version of the function only return the sampled parameter values of the expected parameter values 
+    
     Parameters
     ----------
     uniform_low : int or float, the pre-defined first guess for the mean of a potential normal distribution for the lower bound of the uniform distribution 
     uniform_high: int or float, the pre-defined first guess for the mean of a potential normal distribution for the upper bound of the uniform distribution 
     pre_CV: int or float, the coefficient of variation for the parameter. The CV applieds to the normal and uniform distribution parameters
     par_name: str, the parameter name in use
+    fix_bound: bool, if the boundary of the uniform distribution is fixed (default) or not.
+    dis_method: str, the distribution method to draw parameter values during optimization/calibration process. Either "normal" for a normal dsitribution or "percentage" from a fixed percentage (default).  
     '''
-    # Define the uniform distribution for the mean of parameter
-    uniform_low_mean_sd = abs(uniform_low * (pre_CV / 100)) # Sd needs to be positive 
-    uniform_low_mean_gauss = norm(loc=uniform_low, scale=uniform_low_mean_sd) # Generate random numbers from the pre-defined guassian distribution
-    uniform_high_mean_sd = abs(uniform_high* (pre_CV / 100)  ) # Sd needs to be positive 
-    uniform_high_mean_gauss = norm(loc=uniform_high, scale=uniform_high_mean_sd) # Generate random numbers from the pre-defined guassian distribution
-    # Sample the mean values from the defined Gaussian distribution
-    uniform_low_mean_gauss_sample = uniform_low_mean_gauss.rvs(size=1)
-    uniform_high_mean_gauss_sample = uniform_high_mean_gauss.rvs(size=1)
-    # Avoid situations where uniform_low_mean_gauss_sample>=uniform_high_mean_gauss_sample
-    while uniform_low_mean_gauss_sample>=uniform_high_mean_gauss_sample: 
-        uniform_low_mean_gauss_sample = uniform_low_mean_gauss.rvs(size=1)
-        uniform_high_mean_gauss_sample = uniform_high_mean_gauss.rvs(size=1)
-        if uniform_high_mean_gauss_sample>uniform_low_mean_gauss_sample:
-            break
-    par_mean = Uniform(low=uniform_low_mean_gauss_sample, high=uniform_high_mean_gauss_sample)
-    # Define the uniform distribution for the sd of parameter. Note the lower and upper bound are sampled from a truncated normal distribution (>=0)
-    uniform_sd_low = uniform_low_mean_sd * (pre_CV / 100)
-    uniform_sd_low_gauss =  truncnorm(0, numpy.inf, loc=uniform_low_mean_sd, scale=uniform_sd_low) # A truncated normal distribution to sample std
-    uniform_sd_high = uniform_high_mean_sd * (pre_CV / 100)
-    uniform_sd_high_gauss =  truncnorm(0, numpy.inf, loc=uniform_high_mean_sd, scale=uniform_sd_high) # A truncated normal distribution to sample std
-    # Sample the std from the defined gaussian distribution
-    uniform_sd_low_gauss_sample = uniform_sd_low_gauss.rvs(size=1)
-    uniform_sd_high_gauss_sample = uniform_sd_high_gauss.rvs(size = 1)
-    while uniform_sd_low_gauss_sample>=uniform_sd_high_gauss_sample: # while uniform_sd_low_sample>=uniform_sd_high_sample:
-        uniform_sd_low_gauss_sample = uniform_sd_low_gauss.rvs(size=1)
-        uniform_sd_high_gauss_sample = uniform_sd_high_gauss.rvs(size=1)
-        if uniform_sd_high_gauss_sample>uniform_sd_low_gauss_sample:
-            break
-    par_sd = Uniform(low=uniform_sd_low_gauss_sample, high=uniform_sd_high_gauss_sample)
+    if not fix_bound:
+        # 1. Draw flexible boundaries from a normal distribution 
+        if dis_method=="normal":
+            # Define the uniform distribution for the mean of parameter
+            uniform_low_mean_sd = abs(uniform_low * (pre_CV / 100)) # Sd needs to be positive 
+            uniform_low_mean_gauss = norm(loc=uniform_low, scale=uniform_low_mean_sd) # Generate random numbers from the pre-defined guassian distribution
+            uniform_high_mean_sd = abs(uniform_high* (pre_CV / 100)  ) # Sd needs to be positive 
+            uniform_high_mean_gauss = norm(loc=uniform_high, scale=uniform_high_mean_sd) # Generate random numbers from the pre-defined guassian distribution
+            # Sample the mean values from the defined Gaussian distribution
+            uniform_low_mean_gauss_sample = uniform_low_mean_gauss.rvs(size=1)
+            uniform_high_mean_gauss_sample = uniform_high_mean_gauss.rvs(size=1)
+            # Avoid situations where uniform_low_mean_gauss_sample>=uniform_high_mean_gauss_sample
+            while uniform_low_mean_gauss_sample>=uniform_high_mean_gauss_sample: 
+                uniform_low_mean_gauss_sample = uniform_low_mean_gauss.rvs(size=1)
+                uniform_high_mean_gauss_sample = uniform_high_mean_gauss.rvs(size=1)
+                if uniform_high_mean_gauss_sample>uniform_low_mean_gauss_sample:
+                    break
+            # In case a fixed boundary of the uniform distribution is assumed, parameter values are directly sampled from the fixed uniform distribution
+            par_mean = Uniform(name= par_name, low=uniform_low_mean_gauss_sample, high=uniform_high_mean_gauss_sample)
+        # 2. Draw flexible boundaries from a fixed percentage
+        elif dis_method=="percentage":
+            range_abs =  abs(uniform_high - uniform_low) # Obtain the absolute difference between the high and low boundary
+            low_bound_var = uniform_low - range_abs * (pre_CV / 100) # Left bound moves towards left inifinity with prescribed variability 
+            high_bound_var = uniform_high + range_abs * (pre_CV / 100) # Right bound moves towards right inifinity with prescribed variability 
+            par_mean = Uniform(name= par_name, low=low_bound_var, high=high_bound_var) # Draw the parameter values from a newly formed uniform distribution
+    else:
+        par_mean = Uniform(name= par_name, low=uniform_low, high=uniform_high)
+    return par_mean
+    # # Define the uniform distribution for the sd of parameter. Note the lower and upper bound are sampled from a truncated normal distribution (>=0)
+    # uniform_sd_low = uniform_low_mean_sd * (pre_CV / 100)
+    # uniform_sd_low_gauss =  truncnorm(0, numpy.inf, loc=uniform_low_mean_sd, scale=uniform_sd_low) # A truncated normal distribution to sample std
+    # uniform_sd_high = uniform_high_mean_sd * (pre_CV / 100)
+    # uniform_sd_high_gauss =  truncnorm(0, numpy.inf, loc=uniform_high_mean_sd, scale=uniform_sd_high) # A truncated normal distribution to sample std
+    # # Sample the std from the defined gaussian distribution
+    # uniform_sd_low_gauss_sample = uniform_sd_low_gauss.rvs(size=1)
+    # uniform_sd_high_gauss_sample = uniform_sd_high_gauss.rvs(size = 1)
+    # while uniform_sd_low_gauss_sample>=uniform_sd_high_gauss_sample: # while uniform_sd_low_sample>=uniform_sd_high_sample:
+    #     uniform_sd_low_gauss_sample = uniform_sd_low_gauss.rvs(size=1)
+    #     uniform_sd_high_gauss_sample = uniform_sd_high_gauss.rvs(size=1)
+    #     if uniform_sd_high_gauss_sample>uniform_sd_low_gauss_sample:
+    #         break
+    # par_sd = Uniform(low=uniform_sd_low_gauss_sample, high=uniform_sd_high_gauss_sample)
     # Avoid negative std
     # if uniform_sd_low_sample<=0:
     #     uniform_sd_low_sample = 0
@@ -106,7 +122,7 @@ def parameter_dist(uniform_low, uniform_high, pre_CV, par_name):
     #     uniform_sd_high_sample= 0
     # # Avoid high is lower than low in the uniform distribution
     # while uniform_sd_low_sample>=uniform_sd_high_sample:
-    return Normal(name=par_name, mean=par_mean.optguess, stddev= par_sd.optguess) # Return a normal distribution of potential parameter value
+    #return Normal(name=par_name, mean=par_mean.optguess, stddev= par_sd.optguess) # Return a normal distribution of potential parameter value    
 #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 def check_file_stat(output_csv, file_type =".csv"):
     """
@@ -204,40 +220,49 @@ def f(d_ini, folder_out, path_data, path_obs, cv_i, **kwargs):
                     # par0: thermal_threshold expressed in GDD, representing the growing degree days 
                     # from a starting date T0 to a date where the stage occurs.
                     # All models but GDD and GDD richardson models accumulate daily degree day between 0 and 1, therefore the critical state of forcing for a target stage is low
-                    par0_sample = parameter_dist(20, 100, cv_i, "CTF")
+                    par0_sample = parameter_dist(20, 100, cv_i, "CTF") # Wide range scenario
+                    #par0_sample = parameter_dist(40, 80, cv_i, "CTF") # Narrow range scenario
                 else:
-                    par0_sample = parameter_dist(900, 1411, cv_i, "CTF")
+                    par0_sample = parameter_dist(700, 1500, cv_i, "CTF") # Wide range scenario
+                    #par0_sample = parameter_dist(1100, 1300, cv_i, "CTF") # Narrow range scenario
                 # Append the parameter values
                 param_list.append(par0_sample)
                 if ("wang" in kwargs.values()) or ("triangular" in kwargs.values()):
                     # par1: Tdmin, the base temperature for phenology development
-                    par1_sample = parameter_dist(-5, 10, cv_i, "MnDT")
+                    par1_sample = parameter_dist(-5, 10, cv_i, "MnDT") # Wide range scenario
+                    #par1_sample = parameter_dist(0, 5, cv_i, "MnDT") # Narrow range scenario
                     # Append the parameter values
                     param_list.append(par1_sample)
                     # par2: Tdopt, the optimum temperature at which development rate is optimum.
-                    par2_sample = parameter_dist(18, 28, cv_i, "ODT")
+                    par2_sample = parameter_dist(15, 28, cv_i, "ODT") # Wide range scenario
+                    #par2_sample = parameter_dist(22, 25, cv_i, "ODT") # Narrow range scenario
                     # Append the parameter values
                     param_list.append(par2_sample)
                     # par3: Tdmax, the maximum temperature at which development rate is stopped.
-                    par3_sample = parameter_dist(25, 40, cv_i, "MxDT")
+                    par3_sample = parameter_dist(32, 42, cv_i, "MxDT") # Wide range scenario
+                    # par3_sample = parameter_dist(28, 35, cv_i, "MxDT") # Narrow range scenario
                     # Append the parameter values
                     param_list.append(par3_sample)
                 elif "GDD_Richardson" in kwargs.values():
                     # par1: Tdmin, the base temperature for phenology development
-                    par1_sample = parameter_dist(-5, 10, cv_i, "MnDT")
+                    par1_sample = parameter_dist(-5, 10, cv_i, "MnDT") # Wide range scenario
+                    # par1_sample = parameter_dist(0, 5, cv_i, "MnDT") # Narrow range scenario
                     # Append the parameter values
                     param_list.append(par1_sample)
                     # par3: Tdmax, the optimum temperature at which development rate is optimum.
-                    par3_sample = parameter_dist(15, 40, cv_i, "MxDT")
+                    par3_sample = parameter_dist(32, 42, cv_i, "MxDT") # Wide range scenario
+                    # par3_sample = parameter_dist(28, 35, cv_i, "MxDT") # Narrow range scenario
                     # Append the parameter values
                     param_list.append(par3_sample)
                 elif "sigmoid" in kwargs.values():
                     # par4: a, the sharpness of the curve exclusively for the sigmoid model
-                    par4_sample = parameter_dist(-30, 0, cv_i, "CS")
+                    par4_sample = parameter_dist(-30, 30, cv_i, "CS") # Wide range scenario
+                    # par4_sample = parameter_dist(-15, 0, cv_i, "CS") # Narrow range scenario
                     # Append the parameter values
                     param_list.append(par4_sample)
                     # par5: b, the mid-response temperature exclusively for the sigmoid model
-                    par5_sample = parameter_dist(0, 25, cv_i, "MRT")
+                    par5_sample = parameter_dist(0, 25, cv_i, "MRT") # Wide range scenario
+                    # par5_sample = parameter_dist(10, 20, cv_i, "MRT") # Narrow range scenario
                     # Append the parameter values
                     param_list.append(par5_sample)
             else:
