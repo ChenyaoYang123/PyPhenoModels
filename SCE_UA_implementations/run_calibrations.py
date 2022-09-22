@@ -39,7 +39,7 @@ def mkdir(dir = None):
     if not os.path.exists(dir):
       os.makedirs(dir)      
 ######################################################################################################################################################################  
-def my_sce_ua(d_ini, path_data, path_obs, cv_i,**kwargs):
+def algorithm_implementation(d_ini, path_data, path_obs, cv_i,**kwargs):
     # importing  all the functions defined in func.py
     #from func import f_data_in, f_subset, f_data_obs, f_subset_obs, f_subset_2    
     folder_output_base = os.path.basename(path_obs)
@@ -100,8 +100,13 @@ def my_sce_ua(d_ini, path_data, path_obs, cv_i,**kwargs):
     # obs_bbch09.to_csv(folder_output + '/tmp_obs_' + str(d_ini[0]) + '_' + str(d_ini[len(d_ini) - 1]) + '.csv')
     assert "model_choice" in kwargs.keys(), "the model choice is not specified"
     model_choice = kwargs["model_choice"]
-
-    f(d_ini, folder_output, path_data, path_obs, cv_i+1, model_selection = model_choice)
+    assert "par_scenario" in kwargs.keys(), "the parameter prior test setting is not specified"
+    par_scenario = kwargs["par_scenario"]     
+    assert "algorithm_choice" in kwargs.keys(), "the algorithm choice is not specified" 
+    algorithm_choice = kwargs["algorithm_choice"] 
+    
+    f(d_ini, folder_output, path_data, path_obs, cv_i+1, 
+      model_selection = model_choice, par_scenario= par_scenario, algorithm_choice=algorithm_choice)
 ######################################################################################################################################################################
 # 1. User-specific input
 if getpass.getuser() == 'Clim4Vitis':
@@ -109,16 +114,20 @@ if getpass.getuser() == 'Clim4Vitis':
     #shape_path = r"H:\Grapevine_model_GridBasedSimulations_study4\shapefile"
 elif getpass.getuser() == 'Admin':
     script_drive = "G:\\"
+else:
+    script_drive = "F:\\Ongoing_2022_09"
 # Define the main directory depending on the device
 main_dir = os.path.join(script_drive,"Grapevine_model_VineyardR_packages_SCE_implementations") 
 os.chdir(os.path.join(main_dir, "Pyphenology_SCE_UA", "calibration_run")) # Change to the implementation directory where all scripts are ready to be called  
-from sce_ua import f
+from algorithm_func import f
 
 # cv_list = list(np.arange(5,30+5,5)) # Define the potential variability in suited parameter values
-cv_list = list(np.arange(10,50+10,10)) # Test in a later fashion 
+AG_choice = "sa" # Specify the algorithm choice 
+cv_list = list(np.arange(0,50+10,10)) # The tested variability experiment
 gridded_climate_path = os.path.join(main_dir, "gridded_climate_data") # ("./calibration_test/Lisboa region_no_NAN.csv") # Path to weather data
 study_stage = "Flowering"
 study_varieties = ["TF", "TN"]
+parameter_scenario = "narrow" # Define the parameter prio range scenario 
 phenolog_ob_summary = os.path.join(main_dir, "phenology_data", "Douro", "observations.xlsx") # Path to phenology data in Douro
 phenolog_ob_df = pd.read_excel(phenolog_ob_summary, header=0, sheet_name=study_stage) # Read the phenology data into df
 
@@ -127,9 +136,13 @@ phenolog_ob_df = pd.read_excel(phenolog_ob_summary, header=0, sheet_name=study_s
 # Get a list of varieties for the calibration
 # phenology_ob_varieties = [variety for variety in phenology_ob_varieties if "Touriga Nacional" not in variety] # TN needs to be excluded as the current calibration framework does not suppor uncontinuous datasets
 model_list = ["classic_GDD", "GDD_Richardson", "wang", "triangular", "sigmoid"]
-
+para_N_dict = {} 
 for cv_i in cv_list:
     for phenology_model_choice in model_list:
+        # Skip the GDD model for FAST sensitivity analysis  
+        if AG_choice =="fast":
+            if phenology_model_choice =="classic_GDD":
+                continue 
         time_start = datetime.now()
         time_start_str = time_start.strftime("%Y-%m-%d %H:%M:%S")
         print("Start time =" + time_start_str + "for the model {} under CV experiment {}%".format(phenology_model_choice, str(cv_i)))
@@ -155,7 +168,8 @@ for cv_i in cv_list:
             # Define the calibration time period according to observed study years that will be supplied into the list
             d_ini = ["{}-01-01".format(start_year), "{}-12-31".format(end_year)] # Only for naming purpose
             # Start optimization of parameters
-            my_sce_ua(d_ini, gridded_climate_path, path_obs1, cv_i, model_choice=phenology_model_choice)
+            algorithm_implementation(d_ini, gridded_climate_path, path_obs1, cv_i, 
+                                     model_choice=phenology_model_choice, par_scenario=parameter_scenario, algorithm_choice=AG_choice)
             # Print the computation end time
             time_end = datetime.now()
             time_end_str = time_end.strftime("%Y-%m-%d %H:%M:%S")
