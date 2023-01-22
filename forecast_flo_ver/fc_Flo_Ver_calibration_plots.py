@@ -22,8 +22,21 @@ elif getpass.getuser() == 'Admin':
     script_drive = "G:\\"
 elif (getpass.getuser() == 'CHENYAO YANG') or (getpass.getuser() == 'cheny'):
     script_drive = "D:\\"
-target_dir1 = r"Mega\Workspace\Study for grapevine\Study6_Multi_phenology_modelling_seasonal_forecast\script_collections" # Specific for a given study
+target_dir1 = r"Mega\Workspace\Study for grapevine\Study7_Sigmoid_phenology_modelling_seasonal_forecast\script_collections" # Specific for a given study
 target_dir2 = r"Mega\Workspace\Programming_resources\Python\Functions" # Specific for a given study
+###############################################################################
+def mkdir(dir = None):
+    '''
+    Creates the given directory.
+
+    Parameters
+    ----------
+    dir : char
+           Directory
+    '''
+    if not dir is None:
+        if not os.path.exists(dir):
+            os.makedirs(dir)
 ###############################################################################
 def add_script(script_drive, target_dir):
     '''
@@ -44,12 +57,17 @@ add_script(script_drive, target_dir2)
 from Multi_phenology_model_classes import * # Add the multi-phenology model class script
 from utilities import get_nearest_hundreds
 ################################################################################################
+########################################################################## Function or Library Blocks ####################################################################################################################
+
+########################################################################## Coding Blocks #################################################################################################################################
+#+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+#++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++Input code session+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 # 1. Define user-specified path
-main_dir = join(script_drive, dirname(target_dir1), "PMP_sigmoid_run") # Main workspace path
-ob_data = join(main_dir, "summary_phenology.csv") # Phenology observation path
-weather_data = join(main_dir, "weather.txt") # Phenology observation path
-calibration_par_path = join(main_dir, "Calibrated_parameters_target.xlsx") # Calibrated parameter summary
-################################################################################################
+main_dir = join(script_drive, "Grapevine_model_SeasonalForecast_FloVer", "PMP_sigmoid_run") # Main workspace path
+ob_data = join(main_dir, "OB", "summary_phenology.csv") # Phenology observation path
+weather_data = join(main_dir, "climate", "weather.txt") # Phenology observation path
+calibration_par_path = join(main_dir, "calibrated_parameters", "Calibrated_parameters_target.xlsx") # Calibrated parameter summary
+#+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 # 2. Load the weather data
 weather_data_df = pd.read_csv(weather_data, sep="\s+", header=0, index_col= False) # Load the weather df
 # 2.1 Create the datetime index column
@@ -63,7 +81,7 @@ Tmax_name = [col_name for col_name in weather_data_df.columns if "Tmax" in col_n
 T_min = pd.Series(weather_data_df[Tmin_name].values, index = datetime_index, name= "tasmin")  # Ensure the input data is a series
 T_mean = pd.Series(weather_data_df[Tmean_name].values, index = datetime_index, name= "tasmean")  # Ensure the input data is a series
 T_max = pd.Series(weather_data_df[Tmax_name].values, index = datetime_index, name= "tasmax")  # Ensure the input data is a series
-################################################################################################
+#+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 # 3. Load the calibated parameter settings and observational datasets
 calibration_par_TN = pd.read_excel(calibration_par_path, sheet_name = "TN_settings")
 calibration_par_TF = pd.read_excel(calibration_par_path, sheet_name = "TF_settings")
@@ -91,14 +109,15 @@ TF_concat.set_index("Model_parameters", inplace=True)
 TN_concat_bestfit = TN_concat.iloc[:, pd.Series(TN_concat.loc["RMSE", :].values, dtype=float).argmin()]
 TF_concat_bestfit = TF_concat.iloc[:, pd.Series(TF_concat.loc["RMSE", :].values, dtype=float).argmin()]
 # 3.3.4 Export the subset df into local disk
-TN_concat_bestfit.to_csv(join(main_dir,"TN_para.csv"))
-TF_concat_bestfit.to_csv(join(main_dir,"TF_para.csv"))
+TN_concat_bestfit.to_csv(join(main_dir,"calibrated_parameters", "TN_para.csv"))
+TF_concat_bestfit.to_csv(join(main_dir,"calibrated_parameters","TF_para.csv"))
 # 3.4 Load observational datasets
-ob_data_phenology = pd.read_csv(ob_data, ",", header=0) # Read the phenology datasets
+ob_data_phenology = pd.read_csv(ob_data, sep=",", header=0) # Read the phenology datasets
 ob_data_phenology_lisbon = ob_data_phenology.loc[ob_data_phenology["Sites"]=="Lisboa"] # Subset the phenology dataset that only corresponds to the Lisbon dataset                                
-################################################################################################
+#+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 # 4. Run simulation with the best-fit parameter set for each variety and make the respective scatter plot with observation
 variety_dict = {"TF": "Touriga Francesa", "TN": "Touriga Nacional"} # Create a dict that contains two variety names
+variety_dict_plot = {"TF": "Touriga Franca", "TN": "Touriga Nacional"} # Create a dict that contains two variety names
 fig, axe = plt.subplots(len(variety_dict), len(variety_dict), figsize=(9,9)) # Create the plot instances
 # Iterate over each variety
 for index, (var_short_name, var_full_name) in enumerate(variety_dict.items()):
@@ -107,8 +126,6 @@ for index, (var_short_name, var_full_name) in enumerate(variety_dict.items()):
     ob_subset_data_phenology = ob_subset_data_phenology.iloc[:, 1:] # Filter the dataset by removing the first column
     # Compute the calibration repetition with the min RMSE
     min_RMSE_position = pd.Series(np.array(target_pars[var_short_name]["RMSE"].iloc[0, :])[1:], dtype=float).argmin()
-    
-    
     # Extract the flowering stage parameter set
     flo_thermal = target_pars[var_short_name]["SStar<1>"].set_index("Model_parameters")
     flo_d = target_pars[var_short_name]["d_flo"].set_index("Model_parameters")
@@ -143,8 +160,6 @@ for index, (var_short_name, var_full_name) in enumerate(variety_dict.items()):
     pairs_OB_SM = [flo_pair, ver_pair]
     pairs_OB_SM_name = ["flowering_stage", "veraison_stage"]
     # pLot for each two axe per variety
- 
-        
     for axe_instance, OB_SM_df, variable_name in zip(target_axe_list, pairs_OB_SM, pairs_OB_SM_name):
         # Get the phenology stage in current loop
         if "flowering" in variable_name:
@@ -197,9 +212,10 @@ for index, (var_short_name, var_full_name) in enumerate(variety_dict.items()):
 # Save the figure into the local disk
 fig.savefig(join(main_dir,"calib_scatter.png"), bbox_inches="tight",pad_inches=0.05,dpi=600)
 plt.close()
-
+#+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 # 5. Run simulations with the best-fit parameter set for each variety and make the respective line plot with observation
 variety_dict = {"TF": "Touriga Francesa", "TN": "Touriga Nacional"} # Create a dict that contains two variety names
+variety_dict_plot = {"TF": "Touriga Franca", "TN": "Touriga Nacional"} # Create a dict that contains two variety names
 # 5.1 Collect simulation series for all calibrated parameter sets
 var_sm_flo = {} # Create an empty dictionary to store flowering simulation results for each variety
 var_sm_ver = {} # Create an empty dictionary to store veraison simulation results for each variety
@@ -251,7 +267,6 @@ for var_short_name in target_pars.keys():
         ver_pair = pd.concat([ver_OB, ver_SM], axis= 1, join="inner")
         # Only extract simulation series that match the observed data
         ver_SM = ver_pair["Ver_SM"].copy(deep=True)
-        
         # Attach the simulation series to the target dictionary
         if repetition_run == RMSE_series.argmin():  # if the current loop equals to position with the minimum RMSE
             var_sm_flo[var_short_name][str(repetition_run)+"_minRMSE"] = flo_SM.copy(deep=True)
@@ -332,6 +347,7 @@ for index, (var_short_name, var_full_name) in enumerate(variety_dict.items()):
             axe_instance.text(0.15,0.1,"Std_OB="+str(round(np.nanstd(flo_OB))), fontsize=4, fontstyle="italic", color='black', horizontalalignment='center', transform = axe_instance.transAxes)
             axe_instance.text(0.9,0.15,"Mean_SM="+str(round(np.nanmean(SM_series_flo))), fontsize=4, fontstyle="italic", color='black', horizontalalignment='center', transform = axe_instance.transAxes)
             axe_instance.text(0.9,0.1,"Std_SM="+str(round(np.nanstd(SM_series_flo))), fontsize=4, fontstyle="italic", color='black', horizontalalignment='center', transform = axe_instance.transAxes)
+            axe_instance.grid(False) # Remove the grid
         else: # Plot for the veraison stage
             axe_instance.plot(study_years, ver_OB, ls="dashed", lw= 0.5, color="black", marker = "o", ms = 5, mfc = "black", mec = "black", mew = 0.5)
                               #marker='o', mfc =scenario_color, mec='black', markersize=3)
@@ -355,10 +371,11 @@ for index, (var_short_name, var_full_name) in enumerate(variety_dict.items()):
             axe_instance.set_ylabel("Veraison stage (DOY)",fontsize=6, rotation=90,labelpad = 5)
             axe_instance.set_ylim(170, 240, auto=False)
             # Set the subplot labels on mean and std for both observed and simulated series
-            axe_instance.text(0.15,0.15,"Mean_OB="+str(round(np.nanmean(ver_OB))), fontsize=4, fontstyle="italic", color='black', horizontalalignment='center', transform = axe_instance.transAxes)
-            axe_instance.text(0.15,0.1,"Std_OB="+str(round(np.nanstd(ver_OB))), fontsize=4, fontstyle="italic", color='black', horizontalalignment='center', transform = axe_instance.transAxes)
-            axe_instance.text(0.9,0.15,"Mean_SM="+str(round(np.nanmean(SM_series_ver))), fontsize=4, fontstyle="italic", color='black', horizontalalignment='center', transform = axe_instance.transAxes)
-            axe_instance.text(0.9,0.1,"Std_SM="+str(round(np.nanstd(SM_series_ver))), fontsize=4, fontstyle="italic", color='black', horizontalalignment='center', transform = axe_instance.transAxes)
+            axe_instance.text(0.25,0.15,"Mean_OB="+str(round(np.nanmean(ver_OB))), fontsize=4, fontstyle="italic", color='black', horizontalalignment='center', transform = axe_instance.transAxes)
+            axe_instance.text(0.25,0.1,"Std_OB="+str(round(np.nanstd(ver_OB))), fontsize=4, fontstyle="italic", color='black', horizontalalignment='center', transform = axe_instance.transAxes)
+            axe_instance.text(0.8,0.15,"Mean_SM="+str(round(np.nanmean(SM_series_ver))), fontsize=4, fontstyle="italic", color='black', horizontalalignment='center', transform = axe_instance.transAxes)
+            axe_instance.text(0.8,0.1,"Std_SM="+str(round(np.nanstd(SM_series_ver))), fontsize=4, fontstyle="italic", color='black', horizontalalignment='center', transform = axe_instance.transAxes)
+            axe_instance.grid(False) # Remove the grid
         # Add necessary plot decorations that applies to all subplots
         axe_instance.tick_params(axis='x',length=3,width=1,labelsize=6,pad=2) # Set the y-axis parameters
         axe_instance.tick_params(axis='y',length=3,width=1,labelsize=6,pad=2) # Set the y-axis parameters
@@ -367,9 +384,73 @@ for index, (var_short_name, var_full_name) in enumerate(variety_dict.items()):
         axe_instance.set_xticklabels(study_years, rotation=90)
         #axe_instance.yaxis.set_label_coords(1.2,0.5) 
         # Set the axe instance title
-        axe_instance.set_title(var_full_name, fontdict= {"fontsize": 7}, loc="center", y=0.8, fontweight="bold")
+        axe_instance.set_title(variety_dict_plot[var_short_name], fontdict= {"fontsize": 7}, loc="center", y=0.8, fontweight="bold")
 # Export the figure into local disk
 fig.savefig(join(main_dir,"calib_lineplot.png"), bbox_inches="tight",pad_inches=0.05,dpi=600)
 plt.close()
-
-
+#+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+# 6. Plot on the sigmoid function curve calibrated for 2 different varieties (TF and TN) and 2 different stages (flowering and veraison)
+from Multi_phenology_model_classes import sigmoid_model
+# 6.1 Define the set of parameters for TN used in this study
+a_flo_TN, b_flo_TN = -0.15058, 23.72417
+a_ver_TN, b_ver_TN = -39.99993, 15.4698
+F_flo_TN, F_ver_TN =  26.792, 75.419
+# 6.2 Define the set of parameters for TF used in this study
+a_flo_TF, b_flo_TF =  -0.32078, 15.68677
+a_ver_TF, b_ver_TF =  -39.99987, 15.48739
+F_flo_TF, F_ver_TF =  51.971, 62.765
+# 6.3 Construct a dict of sigmoid models that correspond to two varieties for the two different stages
+sigmoid_models_dict = {"Flowering stage of Touriga Nacional":sigmoid_model(a_flo_TN,b_flo_TN),
+                       "Veraison stage of Touriga Nacional":sigmoid_model(a_ver_TN,b_ver_TN),
+                       "Flowering stage of Touriga Franca":sigmoid_model(a_flo_TF,b_flo_TF),
+                       "Veraison stage of Touriga Franca":sigmoid_model(a_ver_TF,b_ver_TF)
+                       }
+# 6.4 Arrange the subplot layout
+fig, axes = plt.subplots(int(len(sigmoid_models_dict)/2), int(len(sigmoid_models_dict)/2))
+x = np.arange(0, 35+1, 1) # Fabricate a sequence of x values supplied to the sigmoid model
+x_ticks = np.arange(0, 35+1, 1) # Set the fixed x ticks
+y_ticks = np.arange(0, 1+0.1, 0.1) # Set the fixed y ticks 
+# 6.5 Iterate over each axe subplot and sigmoid model dict
+for axe, (sigmoid_response_function_name, sigmoid_cls) in zip(axes.flatten(), sigmoid_models_dict.items()):
+    # Collect a list of y values that correspond to the sigmoid predicted values
+    y = [sigmoid_cls.predict(x_val) for x_val in x] 
+    # Make the line plot with a fixed x list values
+    axe.plot(x, y, '--b') 
+    # Set the subplot title
+    axe.set_title(sigmoid_response_function_name, fontdict={"fontsize":7,
+                                          "color":"black",
+                                          "fontweight":"bold"
+                                          }, y=0.85, pad =3)
+    ## Set other text values in the plot
+    # Set the a parameter text, i.e. the sharpness of the curve
+    axe.text(0.9, 0.2, "d="+str(round(sigmoid_cls.a, 2)), fontsize=6, fontweight="bold", color='k', fontstyle='italic',horizontalalignment='center',transform=axe.transAxes)
+    # Set the b parameter text, i.e. the mid-response temperature
+    axe.text(0.9, 0.1, "b="+str(round(sigmoid_cls.b, 2)), fontsize=6, fontweight="bold",color='k', fontstyle='italic',horizontalalignment='center',transform=axe.transAxes)
+    # Set the F* parameter text, i.e. the thermal forcing threhosld that represent the value for a given variety
+    axe.text(0.9, 0.1, "b="+str(round(sigmoid_cls.b, 2)), fontsize=6, fontweight="bold",color='k', fontstyle='italic',horizontalalignment='center',transform=axe.transAxes)
+    # Set the x-axis boundary 
+    #axe.set_xbound(0, max(x))
+    axe.set_xticks([int(value) for i,value in enumerate(x_ticks) if i%2==0])
+    axe.set_xticklabels([str(int(value)) for i,value in enumerate(x_ticks) if i%2==0], size=6)
+    axe.tick_params(axis="x", which ="major",  pad = 0.1)#length=3,direction = "in",color="black")
+                    #top=False,bottom=True,left=True,right=False) # Set the x-axis padding space
+    # Set the y-ticks and y-tick labels
+    # Set the y-axis boundary 
+    #axe.set_ybound(0, 1.2)
+    axe.set_yticks([round(value,1) for i, value in enumerate(y_ticks)])
+    axe.set_yticklabels([str(round(value,1)) for i, value in enumerate(y_ticks) ], size=6)
+    axe.tick_params(axis="y", which ="major",  pad = 0.1)#length=3, direction = "in", color="black")
+                    #top=False,bottom=True,left=True,right=False) # Set the x-axis padding space
+    # Set the x-axis label
+    axe.set_xlabel("Daily mean temperature (°C)",fontdict={"fontsize":6}, labelpad=1)
+    # Set the y-axis label
+    axe.set_ylabel("Normalized thermal forcing unit", fontdict={"fontsize":6}, labelpad=1)
+    axe.grid(visible=False) # Remove the grid
+    # Set the y-axis lines 
+    # axe.axvline(x=0, ymin=0, ymax=1, color='black') 
+save_path = join(main_dir,"calibrated_parameters") # Re-define the output path
+mkdir(save_path)
+# 6.6 Save the plot to local disk
+fig.savefig(join(save_path,"sigmoid_curve.png"), dpi=600)
+plt.close()
+########################################################################## Coding Blocks #################################################################################################################################

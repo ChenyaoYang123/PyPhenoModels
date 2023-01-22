@@ -125,7 +125,82 @@ end_flo_time =  time_depend_GDD.__defaults__[0] # By extracting the default info
 end_ver_time =  time_depend_GDD.__defaults__[1] # By extracting the default information from the current function
 # 3.6 Define a list of plot types
 plot_types = ["GDD_abs", "GDD_ecdf", "GDD_kde"] # All plot types will be generated
-# 3.7 Iterate over paired .nc files to make the GDD plot
+# 3.7 Compute annual sum of GDD and export them into local disks
+target_nc_dir_list = ["MAE", "MBE", "RMSE", "total_GDD_ob", "total_GDD_fc"]  # Create multiple directories to save target .nc files
+for target_nc_dir in target_nc_dir_list:
+    output_path_GDD_ob_annual = join(output_path, "out_flo_ver", GDD_save, "annual", target_nc_dir) # Define the saving path to save the annual GDD sum data of reference
+    output_path_GDD_fc_annual = join(output_path, "out_flo_ver", GDD_save, "annual", target_nc_dir)  # Define the saving path to save the annual GDD sum data of forecast
+    # Create the directory if they do not exist
+    mkdir(output_path_GDD_ob_annual)
+    mkdir(output_path_GDD_fc_annual)
+decimal_place = 1
+for ob_gdd_file, fc_gdd_file in zip(ob_GDD_files, sm_GDD_files):
+    # Load the .nc datasets with full timeseries from 1993-2017 as the xarray objects
+    ob_gdd_xr_full = xr.open_dataset(ob_gdd_file, mask_and_scale=True, engine = "netcdf4", decode_times =True)
+    fc_gdd_xr_full = xr.open_dataset(fc_gdd_file, mask_and_scale=True, engine = "netcdf4", decode_times =True)
+    # Extract the underlying name for each .nc dataset
+    ob_gdd_xr_varname = [xr_var for xr_var in list(ob_gdd_xr_full.data_vars) if "gdd" in xr_var][0]
+    fc_gdd_xr_varname = [xr_var for xr_var in list(fc_gdd_xr_full.data_vars) if "gdd" in xr_var][0]
+    assert ob_gdd_xr_varname==fc_gdd_xr_varname, "Different variable names are encountered between observations and forecast data"
+    # Access the underlying data array
+    ob_gdd_xr_data_arr = ob_gdd_xr_full[ob_gdd_xr_varname]
+    fc_gdd_xr_data_arr = fc_gdd_xr_full[fc_gdd_xr_varname]
+    # Obtain the lon and lat vectors
+    if np.array_equal(ob_gdd_xr_data_arr.lon.data, fc_gdd_xr_data_arr.lon.data,equal_nan=True) and  np.array_equal(ob_gdd_xr_data_arr.lat.data, fc_gdd_xr_data_arr.lat.data,equal_nan=True):
+        lon_target_vector = np.unique([round(lon_val,decimal_place) for lon_val in ob_gdd_xr_data_arr.lon.data]) # A unique list of longitude
+        lat_target_vector = np.unique([round(lat_val,decimal_place) for lat_val in ob_gdd_xr_data_arr.lat.data]) # A unique list of latitude
+        coords_xarray = [ ("lat", lat_target_vector), ("lon", lon_target_vector)] # Create the coordinate array
+        output_template_MAE = xr.DataArray(coords=coords_xarray).copy(deep=True) # Create a dimensional template xarray object that is going to be used as the output structure for MAE
+        output_template_MBE = xr.DataArray(coords=coords_xarray).copy(deep=True) # Create a dimensional template xarray object that is going to be used as the output structure for MBE
+        output_template_RMSE = xr.DataArray(coords=coords_xarray).copy(deep=True) # Create a dimensional template xarray object that is going to be used as the output structure for RMSE
+    else:
+        raise KeyError("The lon and lat coordinates are not equivalent between forecast and observational datasets")
+    # Iterate over each data point to compute the RMSE and MAE
+    for lon_point in ob_gdd_xr_data_arr.lon.data:
+        for lat_point in ob_gdd_xr_data_arr.lat.data:
+            point = {ob_gdd_xr_data_arr.dims[0]:round(lat_point,decimal_place), ob_gdd_xr_data_arr.dims[1]:round(lon_point,decimal_place)} # Basic point dim that only contains lat1 and lon1
+            # Select the point timeseries data on the daily scale, i.e. daily cumulative GDD for each year
+            GDD_time_ser_OB_daily = ob_gdd_xr_data_arr.sel(point)
+            GDD_time_ser_FC_daily = fc_gdd_xr_data_arr.sel(point)
+            # Resample the data into annual maximum GDD
+            GDD_time_ser_OB = GDD_time_ser_OB_daily.resample(time="A", skipna=True).max(skipna=True) # Compute the annual sum of GDD, corresponding to the maximum value of the cumulative GDD each year
+            GDD_time_ser_FC = GDD_time_ser_FC_daily.resample(time="A", skipna=True).max(skipna=True) # Compute the annual sum of GDD, corresponding to the maximum value of the cumulative GDD each year
+            # Check if there is any empty dimension
+            GDD_time_ser_OB=np.squeeze(GDD_time_ser_OB) if GDD_time_ser_OB.ndim != 1 else GDD_time_ser_OB
+            GDD_time_ser_FC=np.squeeze(GDD_time_ser_FC) if GDD_time_ser_FC.ndim != 1 else GDD_time_ser_FC  
+            # Check if there is any NaN values. If yes, skip to the next grid point
+            if any(pd.isnull(GDD_time_ser_OB)) or any(pd.isnull(GDD_time_ser_FC)):
+                continue
+            # Compute the MAE and RMSE values and assign them to the target .nc dataset for storage
+            # Second metric: MAE, the mean absolute errors
+            MAE = mean_absolute_error(GDD_time_ser_OB, GDD_time_ser_FC)
+            MAE = round(MAE) # Express the value as integer
+            # Third metric: RMSE, the root mean squared errors
+            RMSE = np.sqrt(mean_squared_error(GDD_time_ser_OB, GDD_time_ser_FC))
+            RMSE = round(RMSE) # Express the value as integer
+            # Fourth metric: nRMSE, the normalized root mean squared errors
+            MBE = np.nanmean(GDD_time_ser_FC)- np.nanmean(GDD_time_ser_OB) 
+            # Assign the point data into the target data array
+            #point_save = {ob_gdd_xr_data_arr.dims[0]:lat_point, ob_gdd_xr_data_arr.dims[1]:lon_point}
+            output_template_MAE.loc[point] = MAE
+            output_template_MBE.loc[point] = round(MBE)
+            output_template_RMSE.loc[point] = RMSE
+    # Save the data array into local .nc files
+    output_template_MAE.to_dataset(name = ob_gdd_xr_varname).to_netcdf(join(output_path, "out_flo_ver", GDD_save, "annual", "MAE", "{}.nc".format(ob_gdd_xr_varname)), mode='w', format="NETCDF4", engine="netcdf4")
+    output_template_MBE.to_dataset(name = ob_gdd_xr_varname).to_netcdf(join(output_path, "out_flo_ver", GDD_save, "annual", "MBE", "{}.nc".format(ob_gdd_xr_varname)), mode='w', format="NETCDF4", engine="netcdf4")
+    output_template_RMSE.to_dataset(name = ob_gdd_xr_varname).to_netcdf(join(output_path, "out_flo_ver", GDD_save, "annual", "RMSE", "{}.nc".format(ob_gdd_xr_varname)), mode='w', format="NETCDF4", engine="netcdf4")
+    # Compute the annual sum of daily GDD between observations and forecast series
+    ob_gdd_xr_annual_sum =  ob_gdd_xr_data_arr.resample(time="A", skipna=True).max(skipna=True) # Compute the annual sum of GDD, corresponding to the maximum value of the cumulative GDD each year
+    fc_gdd_xr_annual_sum =  fc_gdd_xr_data_arr.resample(time="A", skipna=True).max(skipna=True) # Compute the annual sum of GDD, corresponding to the maximum value of the cumulative GDD each year
+    # Compute the average over multiple years, i.e. transform the 3-D dataset into 2-D dataset
+    ob_gdd_xr_annual_sum_average = ob_gdd_xr_annual_sum.mean(dim="time", skipna=True, keep_attrs=True).copy(deep=True)
+    fc_gdd_xr_annual_sum_average = fc_gdd_xr_annual_sum.mean(dim="time", skipna=True, keep_attrs=True).copy(deep=True)
+    # a = xr.apply_ufunc(lambda x, y: np.sqrt(x**2 + y**2), ob_gdd_xr_annual_sum, fc_gdd_xr_annual_sum, 
+    #                    input_core_dims=[["time"], ["time"]],  output_core_dims =[["time"], ["time"]])
+    # # Export the annual sum of GDD into the local disk
+    ob_gdd_xr_annual_sum_average.to_dataset(name = ob_gdd_xr_varname).to_netcdf(join(output_path, "out_flo_ver", GDD_save, "annual", "total_GDD_ob", "{}.nc".format(ob_gdd_xr_varname)), mode='w', format="NETCDF4", engine="netcdf4")
+    fc_gdd_xr_annual_sum_average.to_dataset(name = fc_gdd_xr_varname).to_netcdf(join(output_path, "out_flo_ver", GDD_save, "annual", "total_GDD_fc", "{}.nc".format(fc_gdd_xr_varname)), mode='w', format="NETCDF4", engine="netcdf4")
+# 3.8 Iterate over paired .nc files to make the GDD plot
 for plot_type in plot_types:
     for ob_gdd, fc_gdd in zip(ob_GDD_files, sm_GDD_files): # Iterate over each paird gdd file  
         # Load the datasets as the xarray objects
@@ -271,7 +346,19 @@ for plot_type in plot_types:
                 ##  Perform conventional statistical analysis between (regional mean) reference and forecast datasets over all years
                 # First metric: R2, the coefficient of determination
                 corr, corr_p = pearsonr(GDD_ob_DOC_mean.data, GDD_fc_DOC_mean.data)
-                R2 = round(corr**2, 2) # Express the value as 2 decimal digit floating number
+                R2 = round(corr**2, 3) # Express the value as 2 decimal digit floating number
+                # Frist metric inter-annual variability, i.e. R2 from year to year
+                study_years = [year_ob for year_ob, year_fc in zip(np.unique(GDD_ob_DOC_mean.time.dt.year), np.unique(GDD_fc_DOC_mean.time.dt.year)) if year_ob==year_fc ]
+                R2_years = [] # Create an empty list to store the computed R2 from year to year
+                for study_year in study_years:
+                    # Access the yearly data for the daily GDD cumulative value
+                    GDD_ob_DOC_mean_year = GDD_ob_DOC_mean.where(GDD_ob_DOC_mean.time.dt.year.isin(study_year),drop=True)
+                    GDD_fc_DOC_mean_year = GDD_fc_DOC_mean.where(GDD_fc_DOC_mean.time.dt.year.isin(study_year),drop=True)
+                    # Compute the R2 for a specific year
+                    corr_year, corr_p_year = pearsonr(GDD_ob_DOC_mean_year.data, GDD_fc_DOC_mean_year.data)
+                    R2_year = round(corr_year**2, 4) # Express the value as 2 decimal digit floating number
+                    # Append the yearly value into the taget list
+                    R2_years.append(R2_year)
                 # Second metric: MAE, the mean absolute errors
                 MAE = mean_absolute_error(GDD_ob_DOC_yearly_max.data, GDD_fc_DOC_yearly_max.data)
                 MAE = round(MAE) # Express the value as integer
@@ -282,10 +369,12 @@ for plot_type in plot_types:
                 MBE = np.nanmean(GDD_fc_DOC_yearly_max.data)- np.nanmean(GDD_ob_DOC_yearly_max.data)  #  / (max(GDD_ob_DOC_mean.data)-min(GDD_ob_DOC_mean.data)) # The nRMSE is to weigh the RMSE over the range (max- min) of data
                 #nRMSE = round(nRMSE*100, 1) # Express the value as 1 decimal digit floating number
                 # Label the above computed statistical values
-                subplot_axe.text(0.82, 0.2, "R2={}".format(str(R2)), fontsize=5, style="italic", color='black', horizontalalignment='center', transform = subplot_axe.transAxes)
-                subplot_axe.text(0.82, 0.15,"MBE={}".format(str(round(MBE))), fontsize=5, style="italic", color='black', horizontalalignment='center', transform = subplot_axe.transAxes)
-                subplot_axe.text(0.8, 0.1, "MAE={}".format(str(MAE)), fontsize=5, style="italic", color='black', horizontalalignment='center', transform = subplot_axe.transAxes)
-                subplot_axe.text(0.8, 0.05,"RMSE={}".format(str(RMSE)), fontsize=5, style="italic", color='black', horizontalalignment='center', transform = subplot_axe.transAxes)
+                subplot_axe.text(0.82, 0.15,  "R2={}".format(str(R2)), fontsize=5, style="italic", color='black', horizontalalignment='center', transform = subplot_axe.transAxes)
+                # subplot_axe.text(0.75, 0.1, "R2 range=[{},{}]".format(str(round(np.nanpercentile(R2_years,10),3)), str(round(np.nanpercentile(R2_years,90),3))), fontsize=5, style="italic", color='black', horizontalalignment='center', transform = subplot_axe.transAxes)
+                subplot_axe.text(0.75, 0.1, "CV_R2={}%".format(str(round(variation(R2_years,nan_policy="omit",ddof=1)*100,3))), fontsize=5, style="italic", color='black', horizontalalignment='center', transform = subplot_axe.transAxes)
+                #subplot_axe.text(0.82, 0.15,"MBE={}".format(str(round(MBE))), fontsize=5, style="italic", color='black', horizontalalignment='center', transform = subplot_axe.transAxes)
+                #subplot_axe.text(0.8, 0.1, "MAE={}".format(str(MAE)), fontsize=5, style="italic", color='black', horizontalalignment='center', transform = subplot_axe.transAxes)
+                #subplot_axe.text(0.8, 0.05,"RMSE={}".format(str(RMSE)), fontsize=5, style="italic", color='black', horizontalalignment='center', transform = subplot_axe.transAxes)
                 # Perform the two-sample Kolmogorov-Smirnov test for the goodness of fit between two sample distributions 
                 ks_statistics, p_value = ks_2samp(GDD_ob_DOC_mean, GDD_fc_DOC_mean, alternative='two-sided', mode= "auto")
                 # Statistic significant analysis
@@ -404,6 +493,8 @@ for plot_type in plot_types:
         fc_init_month = calendar.month_abbr[int("".join(re.findall(r"\d?",var_name)))] 
         # Save the plot into local disk as a file with specified format per plot type, variety-stage, initialization month
         fig.savefig(join(output_path, "out_flo_ver", GDD_save,"{0}_{1}_{2}_final.png".format(str(plot_type), str(output_varname), str(fc_init_month))), dpi=600, bbox_inches="tight")
+        # Close the figure handles
+        plt.clf()
 #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 # 4 Plot for the year-to-year flowering and veraison DOY for two different varieties
 # 4.1 Check all supported cmaps in mathplotlib
@@ -1176,54 +1267,6 @@ for plot_type in plot_types:
         fig.savefig(join(BS_save_path,"{}_{}_ensProb_ECDF.png".format(plot_type, str(var_stage))), 
                             dpi=600, bbox_inches="tight")
 #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-# 7. Plot on the sigmoid function curve calibrated for 2 different varieties (TF and TN) and 2 different stages (flowering and veraison)
-from Multi_phenology_model_classes import sigmoid_model
-# 7.1 Define the set of parameters for TN used in this study
-a_flo_TN, b_flo_TN = -0.15058, 23.72417
-a_ver_TN, b_ver_TN = -39.99993, 15.4698
-# 7.2 Define the set of parameters for TF used in this study
-a_flo_TF, b_flo_TF =  -0.32078, 15.68677
-a_ver_TF, b_ver_TF =  -39.99987, 15.48739
-# 7.3 Construct a dict of sigmoid models that correspond to two varieties for the two different stages
-sigmoid_models_dict = {"Sigmoid_flo_TN":sigmoid_model(a_flo_TN,b_flo_TN),
-                       "Sigmoid_ver_TN":sigmoid_model(a_ver_TN,b_ver_TN),
-                       "Sigmoid_flo_TF":sigmoid_model(a_flo_TF,b_flo_TF),
-                       "Sigmoid_ver_TF":sigmoid_model(a_ver_TF,b_ver_TF)
-                       }
-# 7.4 Arrange the subplot layout
-fig, axes = plt.subplots(int(len(sigmoid_models_dict)/2), int(len(sigmoid_models_dict)/2))
-x = np.arange(0, 25+1, 1) # Fabricate a sequence of x values supplied to the sigmoid model
-x_ticks = np.arange(0, 25+1, 1) # Set the fixed x ticks
-y_ticks = np.arange(0, 1+0.1, 0.1) # Set the fixed y ticks 
-# 7.5 Iterate over each axe subplot and sigmoid model dict
-for axe, (sigmoid_name, sigmoid_cls) in zip(axes.flatten(), sigmoid_models_dict.items()):
-    # Collect a list of y values that correspond to the sigmoid predicted values
-    y = [sigmoid_cls.predict(x_val) for x_val in x] 
-    # Make the line plot with a fixed x list values
-    axe.plot(x, y, '--b') 
-    # Set the subplot title
-    axe.set_title(sigmoid_name, fontdict={"fontsize":7,
-                                          "color":"black",
-                                          "fontweight":"bold"
-                                          }, y=0.85, pad =3)
-    ## Set other text values in the plot
-    # Set the a parameter text
-    axe.text(0.9, 0.8, "a="+str(round(sigmoid_cls.a, 2)), fontsize=6, fontweight="bold", color='k', fontstyle='italic',horizontalalignment='center',transform=axe.transAxes)
-    # Set the b parameter text
-    axe.text(0.9, 0.7, "b="+str(round(sigmoid_cls.b, 2)), fontsize=6, fontweight="bold",color='k', fontstyle='italic',horizontalalignment='center',transform=axe.transAxes)
-    # Set x-ticks and x-tick labels
-    axe.set_xticks([int(value) for i,value in enumerate(x_ticks) if i%2==0])
-    axe.set_xticklabels([str(int(value)) for i,value in enumerate(x_ticks) if i%2==0], size=6)
-    # Set the y-ticks and y-tick labels
-    axe.set_yticks([round(value,1) for i, value in enumerate(y_ticks)  if i%2==0 ])
-    axe.set_yticklabels([str(round(value,1)) for i, value in enumerate(y_ticks) if i%2==0  ], size=6)
-    # Set the y-axis lines 
-    # axe.axvline(x=0, ymin=0, ymax=1, color='black') 
-save_path = join(output_path, "out_flo_ver","calibration") # Re-define the output path
-mkdir(save_path)
-# Save the plot to local disk
-fig.savefig(join(save_path,"sigmoid_curve.png"), dpi=600)
-plt.close()
 #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++Plot code session++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 #+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ 
 ########################################################################## Coding Blocks #################################################################################################################################
